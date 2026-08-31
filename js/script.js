@@ -1,19 +1,17 @@
-```javascript
 /* =========================================================
-   SIGDH 5.0
-   SCRIPT PRINCIPAL
-   ========================================================= */
+   SIGDH 4.0
+   SCRIPT.JS
+   Sistema Integrado de Gestão e Análise de Demandas
+========================================================= */
 
 "use strict";
 
 /* =========================================================
-   CONFIGURAÇÕES
-   ========================================================= */
+   CONFIGURAÇÃO
+========================================================= */
 
 const CONFIG = {
-    registrosPorPagina: 15,
-
-    colunasAnalise: [
+    colunasAnalisadas: [
         "A",
         "G",
         "I",
@@ -36,18 +34,25 @@ const CONFIG = {
     ],
 
     ofensores: [
-        "FARMACIA",
         "LOGISTICA",
+        "FARMACIA",
         "OPME",
         "MEDICAMENTO",
-        "MATERIAL"
+        "MATERIAL",
+        "COMPRA"
+    ],
+
+    prioridades: [
+        "ALTA",
+        "MEDIA",
+        "BAIXA"
     ]
 };
 
 
 /* =========================================================
-   ESTADO DO SISTEMA
-   ========================================================= */
+   ESTADO GLOBAL
+========================================================= */
 
 const estado = {
 
@@ -55,156 +60,351 @@ const estado = {
 
     dadosFiltrados: [],
 
-    paginaAtual: 1,
-
     arquivoAtual: null,
 
-    ultimaAnalise: null,
+    charts: {},
 
-    graficos: {},
+    usuario: {
+        nome: "Jamily Dias",
+        perfil: "Administradora",
+        iniciais: "JD"
+    },
 
-    darkMode: false,
+    tema: localStorage.getItem("sigdH_tema") || "light",
 
-    filtros: {
-        pesquisa: "",
-        classificacao: "",
-        operadora: "",
-        prioridade: "",
-        ofensor: ""
-    }
-
+    historico:
+        JSON.parse(
+            localStorage.getItem("sigdH_historico") || "[]"
+        )
 };
 
 
 /* =========================================================
-   ELEMENTOS
-   ========================================================= */
-
-const $ = id => document.getElementById(id);
-
-const qs = selector => document.querySelector(selector);
-
-const qsa = selector => document.querySelectorAll(selector);
-
-
-/* =========================================================
    INICIALIZAÇÃO
-   ========================================================= */
+========================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
 
-    iniciarSistema();
+    aplicarTema();
 
-});
+    iniciarRelogio();
 
+    iniciarMenu();
 
-function iniciarSistema() {
+    iniciarImportacao();
 
-    carregarConfiguracoes();
+    iniciarFiltros();
 
-    configurarNavegacao();
+    iniciarBotoes();
 
-    configurarSidebar();
+    iniciarModais();
 
-    configurarTema();
-
-    configurarImportacao();
-
-    configurarFiltros();
-
-    configurarModal();
-
-    configurarExportacao();
-
-    configurarMotorAnalise();
+    carregarHistorico();
 
     atualizarInterface();
 
     setTimeout(() => {
 
-        const loading = $("loadingScreen");
+        const loading =
+            document.getElementById("loadingScreen");
 
         if (loading) {
+
             loading.classList.add("hidden");
+
+            setTimeout(() => {
+                loading.style.display = "none";
+            }, 500);
+
         }
 
-    }, 700);
+    }, 900);
 
+});
+
+
+/* =========================================================
+   TEMA
+========================================================= */
+
+function aplicarTema() {
+
+    const tema =
+        localStorage.getItem("sigdH_tema") || "light";
+
+    estado.tema = tema;
+
+    document.documentElement.setAttribute(
+        "data-theme",
+        tema
+    );
+
+    document.body.classList.toggle(
+        "dark-mode",
+        tema === "dark"
+    );
+
+    atualizarIconeTema();
+}
+
+
+function alternarTema() {
+
+    estado.tema =
+        estado.tema === "dark"
+            ? "light"
+            : "dark";
+
+    localStorage.setItem(
+        "sigdH_tema",
+        estado.tema
+    );
+
+    document.documentElement.setAttribute(
+        "data-theme",
+        estado.tema
+    );
+
+    document.body.classList.toggle(
+        "dark-mode",
+        estado.tema === "dark"
+    );
+
+    atualizarIconeTema();
+
+    atualizarGraficos();
+
+    mostrarToast(
+        estado.tema === "dark"
+            ? "Modo escuro ativado."
+            : "Modo claro ativado.",
+        "success"
+    );
+}
+
+
+function atualizarIconeTema() {
+
+    const botao =
+        document.getElementById("themeToggle");
+
+    if (!botao) return;
+
+    const icone =
+        botao.querySelector("i");
+
+    if (!icone) return;
+
+    if (estado.tema === "dark") {
+
+        icone.className =
+            "fa-solid fa-sun";
+
+        botao.title =
+            "Ativar modo claro";
+
+    } else {
+
+        icone.className =
+            "fa-solid fa-moon";
+
+        botao.title =
+            "Ativar modo escuro";
+
+    }
 }
 
 
 /* =========================================================
-   NAVEGAÇÃO
-   ========================================================= */
+   RELÓGIO
+========================================================= */
 
-function configurarNavegacao() {
+function iniciarRelogio() {
 
-    qsa(".menu-item").forEach(item => {
+    function atualizar() {
 
-        item.addEventListener("click", () => {
+        const elemento =
+            document.querySelector("[data-clock]");
 
-            const section = item.dataset.section;
+        if (!elemento) return;
 
-            navegarPara(section);
+        const agora = new Date();
 
-        });
+        elemento.textContent =
+            agora.toLocaleTimeString(
+                "pt-BR",
+                {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                }
+            );
+    }
 
-    });
+    atualizar();
 
+    setInterval(
+        atualizar,
+        1000
+    );
 }
 
 
-function navegarPara(sectionId) {
+/* =========================================================
+   MENU
+========================================================= */
 
-    const sections = qsa(".page-section");
+function iniciarMenu() {
 
-    const menus = qsa(".menu-item");
+    const itens =
+        document.querySelectorAll(
+            ".menu-item"
+        );
 
-    sections.forEach(section => {
+    itens.forEach(item => {
 
-        section.classList.remove("active");
+        item.addEventListener(
+            "click",
+            () => {
+
+                const section =
+                    item.dataset.section;
+
+                if (!section) return;
+
+                mudarSecao(section);
+
+            }
+        );
 
     });
+
+
+    const botoesImportacao =
+        document.querySelectorAll(
+            '[data-action="nova-importacao"]'
+        );
+
+    botoesImportacao.forEach(botao => {
+
+        botao.addEventListener(
+            "click",
+            () => {
+
+                mudarSecao("importacao");
+
+            }
+        );
+
+    });
+
+
+    const abrirSidebar =
+        document.getElementById(
+            "openSidebar"
+        );
+
+    if (abrirSidebar) {
+
+        abrirSidebar.addEventListener(
+            "click",
+            () => {
+
+                const sidebar =
+                    document.getElementById(
+                        "sidebar"
+                    );
+
+                if (sidebar) {
+
+                    sidebar.classList.toggle(
+                        "mobile-open"
+                    );
+
+                }
+
+            }
+        );
+
+    }
+}
+
+
+function mudarSecao(nome) {
+
+    const secoes =
+        document.querySelectorAll(
+            ".page-section"
+        );
+
+    secoes.forEach(secao => {
+
+        secao.classList.remove(
+            "active"
+        );
+
+    });
+
+
+    const destino =
+        document.getElementById(nome);
+
+    if (destino) {
+
+        destino.classList.add(
+            "active"
+        );
+
+    }
+
+
+    const menus =
+        document.querySelectorAll(
+            ".menu-item"
+        );
 
     menus.forEach(menu => {
 
-        menu.classList.remove("active");
+        menu.classList.toggle(
+            "active",
+            menu.dataset.section === nome
+        );
 
     });
 
-    const section = $(sectionId);
 
-    const menu = qs(`.menu-item[data-section="${sectionId}"]`);
+    atualizarCabecalho(nome);
 
-    if (section) {
 
-        section.classList.add("active");
+    const sidebar =
+        document.getElementById("sidebar");
+
+    if (sidebar) {
+
+        sidebar.classList.remove(
+            "mobile-open"
+        );
 
     }
-
-    if (menu) {
-
-        menu.classList.add("active");
-
-    }
-
-    atualizarTitulo(sectionId);
 
     window.scrollTo({
         top: 0,
         behavior: "smooth"
     });
-
 }
 
 
-function atualizarTitulo(sectionId) {
+/* =========================================================
+   CABEÇALHO
+========================================================= */
+
+function atualizarCabecalho(secao) {
 
     const titulos = {
 
         dashboard: [
             "Dashboard",
-            "Visão geral do sistema"
+            "Visão geral das demandas hospitalares"
         ],
 
         demandas: [
@@ -212,281 +412,255 @@ function atualizarTitulo(sectionId) {
             "Consulta e análise dos registros"
         ],
 
-        motor: [
-            "Motor de Análise",
-            "Classificação automática das demandas"
+        importacao: [
+            "Importar Planilha",
+            "Importação e processamento dos dados"
         ],
 
         indicadores: [
             "Indicadores",
-            "Indicadores de desempenho"
+            "Métricas gerais do processamento"
         ],
 
         ranking: [
             "Ranking",
-            "Principais ofensores identificados"
+            "Ranking dos principais ofensores"
+        ],
+
+        ofensores: [
+            "Ofensores",
+            "Análise dos ofensores"
         ],
 
         alertas: [
             "Alertas",
-            "Demandas que precisam de atenção"
-        ],
-
-        importacao: [
-            "Importação",
-            "Importe sua planilha de demandas"
+            "Demandas que exigem atenção"
         ],
 
         exportacao: [
             "Exportação",
-            "Exporte os resultados da análise"
+            "Exportação dos resultados"
+        ],
+
+        historico: [
+            "Histórico",
+            "Importações realizadas"
         ],
 
         usuarios: [
             "Usuários",
-            "Usuários autorizados"
+            "Controle de acesso"
         ],
 
         configuracoes: [
             "Configurações",
-            "Preferências do sistema"
+            "Configurações do sistema"
         ]
 
     };
 
-    const info = titulos[sectionId] || titulos.dashboard;
 
-    if ($("pageTitle")) {
-        $("pageTitle").textContent = info[0];
-    }
-
-    if ($("pageSubtitle")) {
-        $("pageSubtitle").textContent = info[1];
-    }
-
-}
+    const dados =
+        titulos[secao] ||
+        titulos.dashboard;
 
 
-/* =========================================================
-   SIDEBAR
-   ========================================================= */
+    const titulo =
+        document.getElementById(
+            "pageTitle"
+        );
 
-function configurarSidebar() {
+    const subtitulo =
+        document.getElementById(
+            "pageSubtitle"
+        );
 
-    const toggle = $("sidebarToggle");
 
-    const sidebar = $("sidebar");
+    if (titulo) {
 
-    const mobileMenu = $("mobileMenu");
-
-    if (toggle && sidebar) {
-
-        toggle.addEventListener("click", () => {
-
-            sidebar.classList.toggle("collapsed");
-
-        });
+        titulo.textContent =
+            dados[0];
 
     }
 
-    if (mobileMenu && sidebar) {
 
-        mobileMenu.addEventListener("click", () => {
+    if (subtitulo) {
 
-            sidebar.classList.toggle("mobile-open");
-
-        });
+        subtitulo.textContent =
+            dados[1];
 
     }
-
-    qsa(".menu-item").forEach(item => {
-
-        item.addEventListener("click", () => {
-
-            if (window.innerWidth <= 992) {
-
-                sidebar.classList.remove("mobile-open");
-
-            }
-
-        });
-
-    });
-
-}
-
-
-/* =========================================================
-   TEMA
-   ========================================================= */
-
-function configurarTema() {
-
-    const themeToggle = $("themeToggle");
-
-    const darkModeSetting = $("darkModeSetting");
-
-    if (themeToggle) {
-
-        themeToggle.addEventListener("click", alternarTema);
-
-    }
-
-    if (darkModeSetting) {
-
-        darkModeSetting.addEventListener("change", e => {
-
-            aplicarTema(e.target.checked);
-
-        });
-
-    }
-
-    atualizarIconeTema();
-
-}
-
-
-function alternarTema() {
-
-    aplicarTema(!estado.darkMode);
-
-}
-
-
-function aplicarTema(ativo) {
-
-    estado.darkMode = ativo;
-
-    document.body.classList.toggle(
-        "dark-mode",
-        ativo
-    );
-
-    localStorage.setItem(
-        "sigdH_dark_mode",
-        ativo ? "true" : "false"
-    );
-
-    const setting = $("darkModeSetting");
-
-    if (setting) {
-        setting.checked = ativo;
-    }
-
-    atualizarIconeTema();
-
-}
-
-
-function atualizarIconeTema() {
-
-    const button = $("themeToggle");
-
-    if (!button) return;
-
-    const icon = button.querySelector("i");
-
-    if (!icon) return;
-
-    icon.className = estado.darkMode
-        ? "fas fa-sun"
-        : "fas fa-moon";
-
-}
-
-
-/* =========================================================
-   CONFIGURAÇÕES
-   ========================================================= */
-
-function carregarConfiguracoes() {
-
-    const tema = localStorage.getItem("sigdH_dark_mode");
-
-    if (tema === "true") {
-
-        estado.darkMode = true;
-
-        document.body.classList.add("dark-mode");
-
-    }
-
 }
 
 
 /* =========================================================
    IMPORTAÇÃO
-   ========================================================= */
+========================================================= */
 
-function configurarImportacao() {
+function iniciarImportacao() {
 
-    const input = $("inputExcel");
+    const input =
+        document.getElementById(
+            "arquivoExcel"
+        );
 
-    const dropZone = $("arquivoExcel");
+    const dropZone =
+        document.getElementById(
+            "dropZone"
+        );
 
-    if (!input || !dropZone) return;
-
-
-    input.addEventListener("change", event => {
-
-        const arquivo = event.target.files[0];
-
-        if (arquivo) {
-
-            processarArquivo(arquivo);
-
-        }
-
-    });
+    const inputHidden =
+        document.getElementById(
+            "inputExcelHidden"
+        );
 
 
-    dropZone.addEventListener("dragover", event => {
+    if (input) {
 
-        event.preventDefault();
+        input.addEventListener(
+            "change",
+            evento => {
 
-        dropZone.classList.add("dragover");
+                const arquivo =
+                    evento.target.files[0];
 
-    });
+                if (arquivo) {
+
+                    processarArquivo(
+                        arquivo
+                    );
+
+                }
+
+            }
+        );
+
+    }
 
 
-    dropZone.addEventListener("dragleave", () => {
+    if (inputHidden) {
 
-        dropZone.classList.remove("dragover");
+        inputHidden.addEventListener(
+            "change",
+            evento => {
 
-    });
+                const arquivo =
+                    evento.target.files[0];
+
+                if (arquivo) {
+
+                    processarArquivo(
+                        arquivo
+                    );
+
+                }
+
+            }
+        );
+
+    }
 
 
-    dropZone.addEventListener("drop", event => {
+    if (dropZone) {
 
-        event.preventDefault();
+        dropZone.addEventListener(
+            "dragover",
+            evento => {
 
-        dropZone.classList.remove("dragover");
+                evento.preventDefault();
 
-        const arquivo = event.dataTransfer.files[0];
+                dropZone.classList.add(
+                    "dragover"
+                );
 
-        if (arquivo) {
+            }
+        );
 
-            processarArquivo(arquivo);
 
-        }
+        dropZone.addEventListener(
+            "dragleave",
+            () => {
 
-    });
+                dropZone.classList.remove(
+                    "dragover"
+                );
 
+            }
+        );
+
+
+        dropZone.addEventListener(
+            "drop",
+            evento => {
+
+                evento.preventDefault();
+
+                dropZone.classList.remove(
+                    "dragover"
+                );
+
+
+                const arquivo =
+                    evento.dataTransfer.files[0];
+
+                if (!arquivo) return;
+
+
+                const extensao =
+                    obterExtensao(
+                        arquivo.name
+                    );
+
+
+                if (
+                    ![
+                        "xlsx",
+                        "xls",
+                        "csv"
+                    ].includes(extensao)
+                ) {
+
+                    mostrarToast(
+                        "Formato de arquivo não suportado.",
+                        "error"
+                    );
+
+                    return;
+
+                }
+
+
+                processarArquivo(
+                    arquivo
+                );
+
+            }
+        );
+
+    }
 }
 
 
-async function processarArquivo(arquivo) {
+function obterExtensao(nome) {
 
-    const extensao = arquivo.name
+    return nome
         .split(".")
         .pop()
         .toLowerCase();
 
-    if (!["xlsx", "xls", "csv"].includes(extensao)) {
+}
+
+
+/* =========================================================
+   PROCESSAR ARQUIVO
+========================================================= */
+
+async function processarArquivo(arquivo) {
+
+    if (!window.XLSX) {
 
         mostrarToast(
-            "Formato não suportado. Use XLSX, XLS ou CSV.",
+            "Biblioteca XLSX não foi carregada.",
             "error"
         );
 
@@ -494,254 +668,355 @@ async function processarArquivo(arquivo) {
 
     }
 
-    estado.arquivoAtual = arquivo;
 
-    mostrarProgresso(5, arquivo.name);
+    estado.arquivoAtual =
+        arquivo;
+
+
+    mostrarProgresso(
+        10,
+        "Lendo arquivo..."
+    );
+
 
     try {
 
-        const dados = await lerPlanilha(arquivo);
+        const buffer =
+            await arquivo.arrayBuffer();
 
-        mostrarProgresso(45, "Processando registros...");
 
-        const registros = transformarDados(dados);
-
-        mostrarProgresso(75, "Executando classificação...");
-
-        estado.dados = registros;
-
-        estado.dadosFiltrados = [...registros];
-
-        estado.paginaAtual = 1;
-
-        await aguardar(250);
-
-        mostrarProgresso(100, "Importação concluída");
-
-        salvarHistoricoImportacao(
-            arquivo.name,
-            registros.length
+        mostrarProgresso(
+            30,
+            "Abrindo planilha..."
         );
 
-        atualizarInterface();
 
-        mostrarResultadoImportacao(
-            arquivo.name,
-            registros.length
-        );
+        const workbook =
+            XLSX.read(
+                buffer,
+                {
+                    type: "array",
+                    cellDates: true,
+                    raw: false
+                }
+            );
 
-        mostrarToast(
-            `${registros.length} demanda(s) importada(s) com sucesso.`,
-            "success"
-        );
 
-        if ($("analiseAutomatica")?.checked) {
+        if (
+            !workbook.SheetNames ||
+            workbook.SheetNames.length === 0
+        ) {
 
-            executarAnalise();
+            throw new Error(
+                "A planilha não possui abas."
+            );
 
         }
 
-    } catch (erro) {
 
-        console.error(erro);
+        const nomeAba =
+            workbook.SheetNames[0];
 
-        mostrarToast(
-            "Não foi possível ler a planilha.",
-            "error"
+
+        const sheet =
+            workbook.Sheets[
+                nomeAba
+            ];
+
+
+        mostrarProgresso(
+            50,
+            "Lendo registros..."
         );
 
-        ocultarProgresso();
+
+        const matriz =
+            XLSX.utils.sheet_to_json(
+                sheet,
+                {
+                    header: 1,
+                    defval: "",
+                    raw: false
+                }
+            );
+
+
+        if (
+            !matriz ||
+            matriz.length < 1
+        ) {
+
+            throw new Error(
+                "A planilha está vazia."
+            );
+
+        }
+
+
+        mostrarProgresso(
+            65,
+            "Analisando dados..."
+        );
+
+
+        const dados =
+            converterPlanilha(
+                matriz
+            );
+
+
+        if (!dados.length) {
+
+            throw new Error(
+                "Nenhum registro válido foi encontrado."
+            );
+
+        }
+
+
+        estado.dados =
+            dados;
+
+        estado.dadosFiltrados =
+            [...dados];
+
+
+        mostrarProgresso(
+            85,
+            "Atualizando dashboard..."
+        );
+
+
+        await new Promise(
+            resolve =>
+                setTimeout(
+                    resolve,
+                    300
+                )
+        );
+
+
+        atualizarInterface();
+
+        registrarHistorico(
+            arquivo,
+            dados.length
+        );
+
+
+        mostrarProgresso(
+            100,
+            "Importação concluída!"
+        );
+
+
+        mostrarToast(
+            `${dados.length} demandas importadas com sucesso.`,
+            "success"
+        );
+
+
+        setTimeout(() => {
+
+            esconderProgresso();
+
+            mudarSecao(
+                "dashboard"
+            );
+
+        }, 700);
+
+
+    } catch (erro) {
+
+        console.error(
+            "Erro na importação:",
+            erro
+        );
+
+
+        esconderProgresso();
+
+
+        mostrarToast(
+            erro.message ||
+            "Não foi possível importar a planilha.",
+            "error"
+        );
 
     }
 
 }
 
 
-function lerPlanilha(arquivo) {
+/* =========================================================
+   CONVERTER PLANILHA
+========================================================= */
 
-    return new Promise((resolve, reject) => {
+function converterPlanilha(matriz) {
 
-        const reader = new FileReader();
+    if (!matriz.length) return [];
 
-        reader.onload = event => {
 
-            try {
+    const linhas =
+        detectarCabecalho(
+            matriz
+        );
 
-                const dados = new Uint8Array(
-                    event.target.result
-                );
 
-                const workbook = XLSX.read(
-                    dados,
-                    {
-                        type: "array",
-                        cellDates: true
-                    }
-                );
+    const inicio =
+        linhas.inicio;
 
-                const primeiraAba =
-                    workbook.SheetNames[0];
 
-                if (!primeiraAba) {
+    const cabecalho =
+        linhas.cabecalho;
 
-                    reject(
-                        new Error("Planilha sem abas.")
-                    );
 
-                    return;
+    const resultado = [];
 
-                }
 
-                const worksheet =
-                    workbook.Sheets[primeiraAba];
+    for (
+        let i = inicio;
+        i < matriz.length;
+        i++
+    ) {
 
-                const json =
-                    XLSX.utils.sheet_to_json(
-                        worksheet,
-                        {
-                            header: 1,
-                            defval: "",
-                            raw: false
-                        }
-                    );
+        const linha =
+            matriz[i];
 
-                resolve(json);
 
-            } catch (erro) {
+        if (
+            !linha ||
+            linha.every(
+                valor =>
+                    String(valor ?? "").trim() === ""
+            )
+        ) {
 
-                reject(erro);
+            continue;
 
-            }
+        }
 
+
+        const registro =
+            criarRegistro(
+                linha,
+                i + 1,
+                cabecalho
+            );
+
+
+        if (registro) {
+
+            resultado.push(
+                registro
+            );
+
+        }
+
+    }
+
+
+    return resultado;
+}
+
+
+/* =========================================================
+   DETECTAR CABEÇALHO
+========================================================= */
+
+function detectarCabecalho(matriz) {
+
+    const primeira =
+        matriz[0] || [];
+
+
+    const possuiTexto =
+        primeira.some(
+            valor =>
+                typeof valor === "string" &&
+                valor.trim() !== ""
+        );
+
+
+    if (possuiTexto) {
+
+        return {
+            inicio: 1,
+            cabecalho: primeira
         };
 
-        reader.onerror = () => {
+    }
 
-            reject(
-                new Error("Erro ao ler arquivo.")
+
+    return {
+        inicio: 0,
+        cabecalho: []
+    };
+}
+
+
+/* =========================================================
+   CRIAR REGISTRO
+========================================================= */
+
+function criarRegistro(
+    linha,
+    numero,
+    cabecalho
+) {
+
+    const get =
+        letra => {
+
+            const indice =
+                colunaParaIndice(
+                    letra
+                );
+
+            return normalizarTexto(
+                linha[indice]
             );
 
         };
 
-        reader.readAsArrayBuffer(arquivo);
 
-    });
+    const dadosColunas = {
 
-}
+        A: get("A"),
+        G: get("G"),
+        I: get("I"),
+        L: get("L"),
+        P: get("P"),
+        Q: get("Q"),
+        AD: get("AD"),
+        AE: get("AE"),
+        AM: get("AM"),
+        AV: get("AV"),
+        BB: get("BB")
+
+    };
 
 
-/* =========================================================
-   TRANSFORMAÇÃO DOS DADOS
-   ========================================================= */
+    const textoAnalise =
+        Object.values(
+            dadosColunas
+        )
+        .join(" ")
+        .trim();
 
-function transformarDados(linhas) {
 
-    if (!linhas || linhas.length === 0) {
+    if (!textoAnalise) {
 
-        return [];
-
-    }
-
-    const primeiraLinha = linhas[0] || [];
-
-    const possuiCabecalho = detectarCabecalho(primeiraLinha);
-
-    const inicio = possuiCabecalho ? 1 : 0;
-
-    const registros = [];
-
-    for (let i = inicio; i < linhas.length; i++) {
-
-        const linha = linhas[i];
-
-        if (!linha || linha.every(v => String(v).trim() === "")) {
-            continue;
-        }
-
-        const registro = criarRegistro(
-            linha,
-            i + 1
-        );
-
-        registros.push(registro);
+        return null;
 
     }
-
-    return registros;
-
-}
-
-
-function detectarCabecalho(linha) {
-
-    const texto = linha
-        .map(v => normalizarTexto(v))
-        .join(" ");
-
-    const palavras = [
-        "PROTOCOLO",
-        "BENEFICIARIO",
-        "RECLAMACAO",
-        "PRESTADOR",
-        "OPERADORA",
-        "DATA"
-    ];
-
-    let encontrados = 0;
-
-    palavras.forEach(palavra => {
-
-        if (texto.includes(palavra)) {
-
-            encontrados++;
-
-        }
-
-    });
-
-    return encontrados >= 2;
-
-}
-
-
-/* =========================================================
-   CRIAÇÃO DOS REGISTROS
-   ========================================================= */
-
-function criarRegistro(linha, numeroLinha) {
-
-    const valorA = valorColuna(linha, "A");
-    const valorG = valorColuna(linha, "G");
-    const valorI = valorColuna(linha, "I");
-    const valorL = valorColuna(linha, "L");
-    const valorP = valorColuna(linha, "P");
-    const valorQ = valorColuna(linha, "Q");
-    const valorAD = valorColuna(linha, "AD");
-    const valorAE = valorColuna(linha, "AE");
-    const valorAM = valorColuna(linha, "AM");
-    const valorAV = valorColuna(linha, "AV");
-    const valorBB = valorColuna(linha, "BB");
-
-
-    const textoAnalise = [
-        valorA,
-        valorG,
-        valorI,
-        valorL,
-        valorP,
-        valorQ,
-        valorAD,
-        valorAE,
-        valorAM,
-        valorAV,
-        valorBB
-    ]
-        .map(v => normalizarTexto(v))
-        .join(" ");
 
 
     const classificacao =
-        classificarDemanda(textoAnalise);
+        classificarDemanda(
+            textoAnalise
+        );
 
 
     const ofensor =
@@ -752,44 +1027,68 @@ function criarRegistro(linha, numeroLinha) {
 
 
     const prioridade =
-        determinarPrioridade(textoAnalise);
+        calcularPrioridade(
+            textoAnalise
+        );
 
 
     const confianca =
         calcularConfianca(
             textoAnalise,
-            classificacao
+            classificacao,
+            ofensor
         );
 
 
     return {
 
-        id: numeroLinha,
-
-        registro:
-            valorA || String(numeroLinha),
+        numero,
 
         protocolo:
-            valorG || "-",
+            dadosColunas.A ||
+            obterValorAlternativo(
+                linha,
+                [
+                    0,
+                    1,
+                    6
+                ]
+            ),
 
         beneficiario:
-            valorI || "-",
+            dadosColunas.G ||
+            obterValorAlternativo(
+                linha,
+                [
+                    6,
+                    7,
+                    8
+                ]
+            ),
 
         data:
-            valorL || "-",
+            dadosColunas.I ||
+            obterValorAlternativo(
+                linha,
+                [
+                    8,
+                    9
+                ]
+            ),
 
         reclamacao:
-            valorP || valorQ || "-",
-
-        prestador:
-            valorQ || valorAD || "-",
-
-        operadora:
-            valorAE || valorAM || "-",
-
-        valorAV,
-
-        valorBB,
+            [
+                dadosColunas.L,
+                dadosColunas.P,
+                dadosColunas.Q,
+                dadosColunas.AD,
+                dadosColunas.AE,
+                dadosColunas.AM,
+                dadosColunas.AV,
+                dadosColunas.BB
+            ]
+            .filter(Boolean)
+            .join(" | "),
 
         classificacao,
 
@@ -799,120 +1098,193 @@ function criarRegistro(linha, numeroLinha) {
 
         confianca,
 
-        status:
-            "PENDENTE",
+        nivelConfianca:
+            obterNivelConfianca(
+                confianca
+            ),
 
-        textoAnalise
+        colunas:
+            dadosColunas,
+
+        dadosOriginais:
+            linha,
+
+        cabecalho
 
     };
-
 }
 
 
 /* =========================================================
-   CONVERSÃO DE COLUNA
-   ========================================================= */
+   COLUNA EXCEL → ÍNDICE
+========================================================= */
 
 function colunaParaIndice(coluna) {
 
     let resultado = 0;
 
-    for (let i = 0; i < coluna.length; i++) {
+    const texto =
+        coluna.toUpperCase();
+
+
+    for (
+        let i = 0;
+        i < texto.length;
+        i++
+    ) {
 
         resultado =
             resultado * 26 +
-            coluna.charCodeAt(i) -
+            texto.charCodeAt(i) -
             64;
 
     }
 
+
     return resultado - 1;
+}
+
+
+/* =========================================================
+   NORMALIZAÇÃO
+========================================================= */
+
+function normalizarTexto(valor) {
+
+    if (
+        valor === null ||
+        valor === undefined
+    ) {
+
+        return "";
+
+    }
+
+
+    if (
+        valor instanceof Date
+    ) {
+
+        return valor.toLocaleDateString(
+            "pt-BR"
+        );
+
+    }
+
+
+    return String(valor)
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .trim();
 
 }
 
 
-function valorColuna(linha, coluna) {
+/* =========================================================
+   TEXTO PARA ANÁLISE
+========================================================= */
 
-    const indice =
-        colunaParaIndice(coluna);
+function textoNormalizado(texto) {
 
-    return linha[indice] !== undefined
-        ? String(linha[indice]).trim()
-        : "";
+    return String(texto || "")
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .toUpperCase();
 
 }
 
 
 /* =========================================================
    CLASSIFICAÇÃO
-   ========================================================= */
+========================================================= */
 
 function classificarDemanda(texto) {
+
+    const t =
+        textoNormalizado(
+            texto
+        );
+
 
     const regras = {
 
         OPME: [
             "OPME",
             "PROTESE",
-            "PRÓTESE",
+            "PROTESES",
             "ORTese",
-            "ÓRTESE",
+            "ORTESE",
+            "ORTESIS",
             "IMPLANTE",
             "STENT",
+            "CATETER",
+            "PLACA",
+            "PARAFUSO",
+            "PROTESE",
             "MATERIAL ESPECIAL"
         ],
 
         MEDICAMENTO: [
             "MEDICAMENTO",
-            "REMÉDIO",
+            "MEDICAMENTOS",
             "REMEDIO",
-            "DROGA",
+            "REMEDIOS",
             "FARMACO",
-            "FÁRMACO",
+            "FARMACIA",
             "COMPRIMIDO",
-            "INJEÇÃO",
+            "CAPSULA",
+            "AMPOLA",
             "INJECAO",
             "DOSE",
-            "POSOLOGIA"
-        ],
-
-        MATERIAL: [
-            "MATERIAL",
-            "MATERIAL HOSPITALAR",
-            "LUVA",
-            "SERINGA",
-            "GAZE",
-            "CURATIVO",
-            "CATETER",
-            "EQUIPO",
-            "DESCARTÁVEL",
-            "DESCARTAVEL"
+            "PRESCRICAO",
+            "QUIMIOTERAPIA"
         ],
 
         LOGISTICA: [
-            "LOGÍSTICA",
-            "LOGISTICA",
             "ENTREGA",
             "ENTREGAR",
-            "ATRASO",
             "TRANSPORTE",
-            "ALMOXARIFADO",
-            "ESTOQUE",
-            "DISPONIBILIDADE",
-            "SEPARAÇÃO",
-            "SEPARACAO"
+            "ATRASO",
+            "ATRASADO",
+            "LOGISTICA",
+            "LOGISTICO",
+            "MOTORISTA",
+            "COLETA",
+            "MOVIMENTACAO",
+            "PRAZO",
+            "DISTRIBUICAO"
         ],
 
         COMPRA: [
             "COMPRA",
             "COMPRAR",
-            "AQUISIÇÃO",
             "AQUISICAO",
-            "COTAÇÃO",
+            "PEDIDO DE COMPRA",
             "COTACAO",
-            "ORÇAMENTO",
+            "FORNECEDOR",
             "ORCAMENTO",
-            "PEDIDO DE COMPRA"
+            "PROCESSO DE COMPRA"
+        ],
+
+        MATERIAL: [
+            "MATERIAL",
+            "INSUMO",
+            "INSUMOS",
+            "LUVAS",
+            "LUVA",
+            "SERINGA",
+            "GAZE",
+            "ALGODAO",
+            "CURATIVO",
+            "MASCARA",
+            "EQUIPAMENTO",
+            "DISPOSITIVO"
         ]
 
     };
@@ -929,236 +1301,262 @@ function classificarDemanda(texto) {
     };
 
 
-    Object.entries(regras).forEach(
-        ([categoria, palavras]) => {
+    Object.keys(regras).forEach(
+        categoria => {
 
-            palavras.forEach(palavra => {
+            regras[categoria].forEach(
+                palavra => {
 
-                const termo =
-                    normalizarTexto(palavra);
+                    const p =
+                        textoNormalizado(
+                            palavra
+                        );
 
-                if (texto.includes(termo)) {
+                    if (
+                        t.includes(p)
+                    ) {
 
-                    pontuacao[categoria]++;
+                        pontuacao[
+                            categoria
+                        ]++;
+
+                    }
 
                 }
-
-            });
+            );
 
         }
     );
 
 
-    const ordenado =
-        Object.entries(pontuacao)
-            .sort((a, b) => b[1] - a[1]);
+    let melhor =
+        "MATERIAL";
 
 
-    if (ordenado[0][1] === 0) {
-
-        return "MATERIAL";
-
-    }
+    let maior =
+        0;
 
 
-    return ordenado[0][0];
+    Object.entries(
+        pontuacao
+    ).forEach(
+        ([categoria, pontos]) => {
 
+            if (
+                pontos > maior
+            ) {
+
+                maior =
+                    pontos;
+
+                melhor =
+                    categoria;
+
+            }
+
+        }
+    );
+
+
+    return melhor;
 }
 
 
 /* =========================================================
    OFENSOR
-   ========================================================= */
+========================================================= */
 
-function identificarOfensor(texto, classificacao) {
+function identificarOfensor(
+    texto,
+    classificacao
+) {
 
-    const regras = {
+    const t =
+        textoNormalizado(
+            texto
+        );
 
-        FARMACIA: [
-            "FARMÁCIA",
+
+    if (
+        [
             "FARMACIA",
-            "FARMACÊUTICO",
             "FARMACEUTICO",
-            "DISPENSAÇÃO",
-            "DISPENSACAO"
-        ],
+            "FARMACEUTICA",
+            "DISPENSACAO",
+            "ESTOQUE FARMACEUTICO"
+        ].some(
+            palavra =>
+                t.includes(
+                    palavra
+                )
+        )
+    ) {
 
-        LOGISTICA: [
-            "LOGÍSTICA",
-            "LOGISTICA",
-            "ENTREGA",
-            "TRANSPORTE",
-            "ALMOXARIFADO",
-            "ESTOQUE"
-        ],
-
-        OPME: [
-            "OPME",
-            "PRÓTESE",
-            "PROTESE",
-            "ÓRTESE",
-            "ORTESE",
-            "IMPLANTE"
-        ],
-
-        MEDICAMENTO: [
-            "MEDICAMENTO",
-            "REMÉDIO",
-            "REMEDIO",
-            "FÁRMACO",
-            "FARMACO"
-        ],
-
-        MATERIAL: [
-            "MATERIAL",
-            "LUVA",
-            "SERINGA",
-            "GAZE",
-            "CATETER",
-            "CURATIVO"
-        ]
-
-    };
-
-
-    const pontos = {};
-
-    CONFIG.ofensores.forEach(ofensor => {
-        pontos[ofensor] = 0;
-    });
-
-
-    Object.entries(regras).forEach(
-        ([ofensor, palavras]) => {
-
-            palavras.forEach(palavra => {
-
-                if (
-                    texto.includes(
-                        normalizarTexto(palavra)
-                    )
-                ) {
-
-                    pontos[ofensor]++;
-
-                }
-
-            });
-
-        }
-    );
-
-
-    const melhor =
-        Object.entries(pontos)
-            .sort((a, b) => b[1] - a[1])[0];
-
-
-    if (!melhor || melhor[1] === 0) {
-
-        return classificacao === "COMPRA"
-            ? "LOGISTICA"
-            : classificacao;
+        return "FARMACIA";
 
     }
 
 
-    return melhor[0];
+    if (
+        classificacao === "OPME"
+    ) {
 
+        return "OPME";
+
+    }
+
+
+    if (
+        classificacao === "MEDICAMENTO"
+    ) {
+
+        return "MEDICAMENTO";
+
+    }
+
+
+    if (
+        classificacao === "LOGISTICA"
+    ) {
+
+        return "LOGISTICA";
+
+    }
+
+
+    if (
+        classificacao === "COMPRA"
+    ) {
+
+        return "COMPRA";
+
+    }
+
+
+    return "MATERIAL";
 }
 
 
 /* =========================================================
    PRIORIDADE
-   ========================================================= */
+========================================================= */
 
-function determinarPrioridade(texto) {
+function calcularPrioridade(texto) {
 
-    const critica = [
-        "URGENTE",
-        "URGÊNCIA",
-        "URGENCIA",
-        "RISCO",
-        "RISCO DE VIDA",
-        "EMERGÊNCIA",
-        "EMERGENCIA",
-        "ÓBITO",
-        "OBITO",
-        "CIRURGIA IMEDIATA",
-        "INTERNAÇÃO",
-        "INTERNACAO"
-    ];
+    const t =
+        textoNormalizado(
+            texto
+        );
 
 
     const alta = [
-        "URGÊNCIA",
+        "URGENTE",
         "URGENCIA",
+        "RISCO",
+        "RISCO DE VIDA",
+        "GRAVE",
+        "GRAVIDADE",
+        "EMERGENCIA",
+        "EMERGENCIAL",
+        "UTI",
+        "CENTRO CIRURGICO",
         "CIRURGIA",
-        "INTERNAÇÃO",
-        "INTERNACAO",
-        "ATRASO",
-        "PREJUDICADO",
-        "IMPACTO"
+        "IMEDIATO",
+        "IMEDIATA",
+        "NAO PODE ESPERAR",
+        "ATRASO CRITICO"
     ];
 
 
     const media = [
+        "ATRASO",
+        "ATRASADO",
         "PENDENTE",
+        "PENDENCIA",
         "AGUARDANDO",
-        "SOLICITAÇÃO",
-        "SOLICITACAO",
-        "PRAZO"
+        "PRAZO",
+        "DEMORA",
+        "RECLAMACAO",
+        "PROBLEMA"
     ];
 
 
-    if (contemAlgum(texto, critica)) {
-        return "CRITICA";
-    }
+    if (
+        alta.some(
+            palavra =>
+                t.includes(
+                    palavra
+                )
+        )
+    ) {
 
-    if (contemAlgum(texto, alta)) {
         return "ALTA";
+
     }
 
-    if (contemAlgum(texto, media)) {
+
+    if (
+        media.some(
+            palavra =>
+                t.includes(
+                    palavra
+                )
+        )
+    ) {
+
         return "MEDIA";
+
     }
+
 
     return "BAIXA";
-
 }
 
 
 /* =========================================================
    CONFIANÇA
-   ========================================================= */
+========================================================= */
 
-function calcularConfianca(texto, classificacao) {
+function calcularConfianca(
+    texto,
+    classificacao,
+    ofensor
+) {
 
-    let pontos = 0;
+    const t =
+        textoNormalizado(
+            texto
+        );
 
-    const palavrasRelevantes = texto
-        .split(/\s+/)
-        .filter(Boolean);
+
+    let pontos = 35;
 
 
-    if (palavrasRelevantes.length >= 5) {
-
-        pontos += 20;
-
-    } else if (palavrasRelevantes.length >= 2) {
+    if (
+        t.length > 50
+    ) {
 
         pontos += 10;
 
     }
 
 
-    const palavrasCategoria = {
+    if (
+        t.length > 120
+    ) {
+
+        pontos += 10;
+
+    }
+
+
+    const palavrasPorCategoria = {
 
         MATERIAL: [
             "MATERIAL",
+            "INSUMO",
             "LUVA",
-            "SERINGA",
-            "GAZE"
+            "SERINGA"
         ],
 
         MEDICAMENTO: [
@@ -1170,919 +1568,158 @@ function calcularConfianca(texto, classificacao) {
         LOGISTICA: [
             "ENTREGA",
             "TRANSPORTE",
-            "LOGISTICA",
-            "ESTOQUE"
+            "ATRASO",
+            "LOGISTICA"
         ],
 
         COMPRA: [
             "COMPRA",
             "AQUISICAO",
-            "COTACAO"
+            "FORNECEDOR"
         ],
 
         OPME: [
             "OPME",
             "PROTESE",
-            "ORTESE",
-            "IMPLANTE"
+            "IMPLANTE",
+            "CATETER"
         ]
 
     };
 
 
-    const termos =
-        palavrasCategoria[classificacao] || [];
+    const palavras =
+        palavrasPorCategoria[
+            classificacao
+        ] || [];
 
 
-    termos.forEach(termo => {
-
-        if (
-            texto.includes(
-                normalizarTexto(termo)
-            )
-        ) {
-
-            pontos += 20;
-
-        }
-
-    });
-
-
-    return Math.min(
-        98,
-        Math.max(35, 40 + pontos)
-    );
-
-}
-
-
-/* =========================================================
-   FILTROS
-   ========================================================= */
-
-function configurarFiltros() {
-
-    const pesquisa = $("searchDemandas");
-
-    const classificacao =
-        $("filtroClassificacao");
-
-    const operadora =
-        $("filtroOperadora");
-
-    const prioridade =
-        $("filtroPrioridade");
-
-    const ofensor =
-        $("filtroOfensor");
-
-    const limpar =
-        $("limparFiltros");
-
-
-    if (pesquisa) {
-
-        pesquisa.addEventListener(
-            "input",
-            aplicarFiltros
+    const encontrados =
+        palavras.filter(
+            palavra =>
+                t.includes(
+                    palavra
+                )
         );
 
-    }
 
-
-    [
-        classificacao,
-        operadora,
-        prioridade,
-        ofensor
-    ].forEach(elemento => {
-
-        if (elemento) {
-
-            elemento.addEventListener(
-                "change",
-                aplicarFiltros
-            );
-
-        }
-
-    });
-
-
-    if (limpar) {
-
-        limpar.addEventListener(
-            "click",
-            limparFiltros
-        );
-
-    }
-
-}
-
-
-function aplicarFiltros() {
-
-    estado.filtros = {
-
-        pesquisa:
-            $("searchDemandas")?.value
-                ?.trim()
-                .toLowerCase() || "",
-
-        classificacao:
-            $("filtroClassificacao")?.value || "",
-
-        operadora:
-            $("filtroOperadora")?.value || "",
-
-        prioridade:
-            $("filtroPrioridade")?.value || "",
-
-        ofensor:
-            $("filtroOfensor")?.value || ""
-
-    };
-
-
-    estado.dadosFiltrados =
-        estado.dados.filter(registro => {
-
-            const texto =
-                normalizarTexto(
-                    [
-                        registro.registro,
-                        registro.protocolo,
-                        registro.beneficiario,
-                        registro.reclamacao,
-                        registro.prestador,
-                        registro.operadora,
-                        registro.classificacao,
-                        registro.ofensor
-                    ].join(" ")
-                );
-
-
-            const pesquisaOK =
-                !estado.filtros.pesquisa ||
-                texto.includes(
-                    normalizarTexto(
-                        estado.filtros.pesquisa
-                    )
-                );
-
-
-            const classificacaoOK =
-                !estado.filtros.classificacao ||
-                registro.classificacao ===
-                estado.filtros.classificacao;
-
-
-            const operadoraOK =
-                !estado.filtros.operadora ||
-                registro.operadora ===
-                estado.filtros.operadora;
-
-
-            const prioridadeOK =
-                !estado.filtros.prioridade ||
-                registro.prioridade ===
-                estado.filtros.prioridade;
-
-
-            const ofensorOK =
-                !estado.filtros.ofensor ||
-                registro.ofensor ===
-                estado.filtros.ofensor;
-
-
-            return (
-                pesquisaOK &&
-                classificacaoOK &&
-                operadoraOK &&
-                prioridadeOK &&
-                ofensorOK
-            );
-
-        });
-
-
-    estado.paginaAtual = 1;
-
-    renderizarTabela();
-
-}
-
-
-function limparFiltros() {
-
-    if ($("searchDemandas")) {
-        $("searchDemandas").value = "";
-    }
-
-    [
-        "filtroClassificacao",
-        "filtroOperadora",
-        "filtroPrioridade",
-        "filtroOfensor"
-    ].forEach(id => {
-
-        if ($(id)) {
-            $(id).value = "";
-        }
-
-    });
-
-
-    aplicarFiltros();
-
-}
-
-
-/* =========================================================
-   TABELA
-   ========================================================= */
-
-function renderizarTabela() {
-
-    const tbody =
-        $("tabelaDemandasBody");
-
-    if (!tbody) return;
-
-
-    tbody.innerHTML = "";
+    pontos +=
+        encontrados.length * 10;
 
 
     if (
-        estado.dadosFiltrados.length === 0
+        ofensor === classificacao ||
+        (
+            classificacao === "MEDICAMENTO" &&
+            ofensor === "FARMACIA"
+        )
     ) {
 
-        tbody.innerHTML = `
-
-            <tr>
-
-                <td colspan="12">
-
-                    <div class="empty-state">
-
-                        <i class="fas fa-file-circle-question"></i>
-
-                        <h4>Nenhuma demanda encontrada</h4>
-
-                        <p>
-                            Importe uma planilha ou altere os filtros.
-                        </p>
-
-                    </div>
-
-                </td>
-
-            </tr>
-
-        `;
-
-        atualizarContadorTabela();
-
-        renderizarPaginacao();
-
-        return;
+        pontos += 10;
 
     }
 
 
-    const inicio =
-        (estado.paginaAtual - 1) *
-        CONFIG.registrosPorPagina;
-
-
-    const fim =
-        inicio +
-        CONFIG.registrosPorPagina;
-
-
-    const registros =
-        estado.dadosFiltrados.slice(
-            inicio,
-            fim
-        );
-
-
-    registros.forEach(registro => {
-
-        const tr =
-            document.createElement("tr");
-
-
-        tr.innerHTML = `
-
-            <td>
-                ${escaparHTML(registro.registro)}
-            </td>
-
-            <td>
-                ${escaparHTML(registro.protocolo)}
-            </td>
-
-            <td>
-                ${escaparHTML(registro.beneficiario)}
-            </td>
-
-            <td>
-                ${escaparHTML(registro.data)}
-            </td>
-
-            <td title="${escaparHTML(registro.reclamacao)}">
-                ${escaparHTML(
-                    limitarTexto(
-                        registro.reclamacao,
-                        55
-                    )
-                )}
-            </td>
-
-            <td>
-                ${escaparHTML(registro.prestador)}
-            </td>
-
-            <td>
-                ${escaparHTML(registro.operadora)}
-            </td>
-
-            <td>
-                ${badgeClassificacao(
-                    registro.classificacao
-                )}
-            </td>
-
-            <td>
-                ${badgeOfensor(
-                    registro.ofensor
-                )}
-            </td>
-
-            <td>
-                ${badgePrioridade(
-                    registro.prioridade
-                )}
-            </td>
-
-            <td>
-                ${badgeConfianca(
-                    registro.confianca
-                )}
-            </td>
-
-            <td>
-
-                <button
-                    class="table-action"
-                    title="Ver detalhes"
-                    onclick="abrirDetalhes(${registro.id})"
-                >
-
-                    <i class="fas fa-eye"></i>
-
-                </button>
-
-            </td>
-
-        `;
-
-
-        tbody.appendChild(tr);
-
-    });
-
-
-    atualizarContadorTabela();
-
-    renderizarPaginacao();
-
-}
-
-
-function atualizarContadorTabela() {
-
-    const contador =
-        $("contadorTabela");
-
-    if (!contador) return;
-
-    contador.textContent =
-        `${estado.dadosFiltrados.length} registro(s)`;
-
-}
-
-
-function renderizarPaginacao() {
-
-    const container =
-        $("pagination");
-
-    if (!container) return;
-
-    container.innerHTML = "";
-
-
-    const totalPaginas =
-        Math.ceil(
-            estado.dadosFiltrados.length /
-            CONFIG.registrosPorPagina
-        );
-
-
-    if (totalPaginas <= 1) return;
-
-
-    for (
-        let pagina = 1;
-        pagina <= totalPaginas;
-        pagina++
-    ) {
-
-        const button =
-            document.createElement("button");
-
-        button.textContent = pagina;
-
-        if (
-            pagina ===
-            estado.paginaAtual
-        ) {
-
-            button.classList.add("active");
-
-        }
-
-
-        button.addEventListener(
-            "click",
-            () => {
-
-                estado.paginaAtual = pagina;
-
-                renderizarTabela();
-
-            }
-        );
-
-
-        container.appendChild(button);
-
-    }
-
+    return Math.min(
+        99,
+        Math.max(
+            1,
+            pontos
+        )
+    );
 }
 
 
 /* =========================================================
-   BADGES
-   ========================================================= */
+   NÍVEL DE CONFIANÇA
+========================================================= */
 
-function badgeClassificacao(valor) {
-
-    const classes = {
-
-        MATERIAL: "blue",
-        MEDICAMENTO: "purple",
-        LOGISTICA: "orange",
-        COMPRA: "yellow",
-        OPME: "green"
-
-    };
-
-    return `
-        <span class="badge ${classes[valor] || "blue"}">
-            ${formatarTexto(valor)}
-        </span>
-    `;
-
-}
-
-
-function badgeOfensor(valor) {
-
-    const classes = {
-
-        FARMACIA: "purple",
-        LOGISTICA: "orange",
-        OPME: "green",
-        MEDICAMENTO: "blue",
-        MATERIAL: "yellow"
-
-    };
-
-    return `
-        <span class="badge ${classes[valor] || "blue"}">
-            ${formatarTexto(valor)}
-        </span>
-    `;
-
-}
-
-
-function badgePrioridade(valor) {
-
-    const classes = {
-
-        CRITICA: "red",
-        ALTA: "orange",
-        MEDIA: "yellow",
-        BAIXA: "green"
-
-    };
-
-    return `
-        <span class="badge ${classes[valor] || "blue"}">
-            ${formatarTexto(valor)}
-        </span>
-    `;
-
-}
-
-
-function badgeConfianca(valor) {
-
-    let classe = "red";
+function obterNivelConfianca(valor) {
 
     if (valor >= 80) {
-        classe = "green";
-    } else if (valor >= 60) {
-        classe = "yellow";
+
+        return "ALTA";
+
     }
 
-    return `
-        <span class="badge ${classe}">
-            ${valor}%
-        </span>
-    `;
 
+    if (valor >= 50) {
+
+        return "MEDIA";
+
+    }
+
+
+    return "BAIXA";
 }
 
 
 /* =========================================================
-   MODAL
-   ========================================================= */
-
-function configurarModal() {
-
-    const modal =
-        $("modalDetalhes");
-
-    const fechar =
-        $("fecharModal");
-
-    const fecharFooter =
-        $("fecharModalFooter");
-
-
-    if (fechar) {
-
-        fechar.addEventListener(
-            "click",
-            fecharModal
-        );
-
-    }
-
-
-    if (fecharFooter) {
-
-        fecharFooter.addEventListener(
-            "click",
-            fecharModal
-        );
-
-    }
-
-
-    if (modal) {
-
-        modal.addEventListener(
-            "click",
-            event => {
-
-                if (
-                    event.target === modal
-                ) {
-
-                    fecharModal();
-
-                }
-
-            }
-        );
-
-    }
-
-
-    document.addEventListener(
-        "keydown",
-        event => {
-
-            if (event.key === "Escape") {
-
-                fecharModal();
-
-            }
-
-        }
-    );
-
-}
-
-
-function abrirDetalhes(id) {
-
-    const registro =
-        estado.dados.find(
-            item => item.id === id
-        );
-
-    if (!registro) return;
-
-
-    if ($("modalProtocolo")) {
-
-        $("modalProtocolo").textContent =
-            `Protocolo: ${registro.protocolo}`;
-
-    }
-
-
-    const conteudo =
-        $("modalConteudo");
-
-    if (!conteudo) return;
-
-
-    conteudo.innerHTML = `
-
-        <div class="summary-item">
-            <span>Nº Registro</span>
-            <strong>${escaparHTML(registro.registro)}</strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Protocolo</span>
-            <strong>${escaparHTML(registro.protocolo)}</strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Beneficiário</span>
-            <strong>${escaparHTML(registro.beneficiario)}</strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Data</span>
-            <strong>${escaparHTML(registro.data)}</strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Prestador</span>
-            <strong>${escaparHTML(registro.prestador)}</strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Operadora</span>
-            <strong>${escaparHTML(registro.operadora)}</strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Classificação</span>
-            <strong>
-                ${badgeClassificacao(
-                    registro.classificacao
-                )}
-            </strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Ofensor</span>
-            <strong>
-                ${badgeOfensor(
-                    registro.ofensor
-                )}
-            </strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Prioridade</span>
-            <strong>
-                ${badgePrioridade(
-                    registro.prioridade
-                )}
-            </strong>
-        </div>
-
-        <div class="summary-item">
-            <span>Confiança</span>
-            <strong>
-                ${registro.confianca}%
-            </strong>
-        </div>
-
-        <div style="
-            margin-top:20px;
-            padding:15px;
-            border-radius:10px;
-            background:var(--bg-tertiary);
-        ">
-
-            <strong style="font-size:11px;">
-                Reclamação
-            </strong>
-
-            <p style="
-                margin-top:8px;
-                color:var(--text-secondary);
-                font-size:11px;
-                line-height:1.6;
-            ">
-                ${escaparHTML(
-                    registro.reclamacao
-                )}
-            </p>
-
-        </div>
-
-    `;
-
-
-    const modal =
-        $("modalDetalhes");
-
-    if (modal) {
-
-        modal.classList.remove("hidden");
-
-    }
-
-}
-
-
-function fecharModal() {
-
-    const modal =
-        $("modalDetalhes");
-
-    if (modal) {
-
-        modal.classList.add("hidden");
-
-    }
-
-}
-
-
-/* =========================================================
-   MOTOR DE ANÁLISE
-   ========================================================= */
-
-function configurarMotorAnalise() {
-
-    const button =
-        $("executarAnalise");
-
-    if (button) {
-
-        button.addEventListener(
-            "click",
-            executarAnalise
-        );
-
-    }
-
-}
-
-
-function executarAnalise() {
-
-    if (estado.dados.length === 0) {
-
-        mostrarToast(
-            "Importe uma planilha antes de executar a análise.",
-            "warning"
-        );
-
-        return;
-
-    }
-
-
-    estado.dados =
-        estado.dados.map(registro => {
-
-            const classificacao =
-                classificarDemanda(
-                    registro.textoAnalise
-                );
-
-
-            const ofensor =
-                identificarOfensor(
-                    registro.textoAnalise,
-                    classificacao
-                );
-
-
-            const prioridade =
-                determinarPrioridade(
-                    registro.textoAnalise
-                );
-
-
-            const confianca =
-                calcularConfianca(
-                    registro.textoAnalise,
-                    classificacao
-                );
-
-
-            return {
-
-                ...registro,
-
-                classificacao,
-                ofensor,
-                prioridade,
-                confianca
-
-            };
-
-        });
-
-
-    estado.dadosFiltrados =
-        [...estado.dados];
-
-
-    estado.ultimaAnalise =
-        new Date();
-
-
-    atualizarInterface();
-
-    mostrarToast(
-        "Análise concluída com sucesso.",
-        "success"
-    );
-
-}
-
-
-/* =========================================================
-   ATUALIZAÇÃO DA INTERFACE
-   ========================================================= */
+   ATUALIZAR INTERFACE
+========================================================= */
 
 function atualizarInterface() {
 
-    atualizarEstatisticas();
-
-    atualizarOperadoras();
+    atualizarCards();
 
     aplicarFiltros();
 
     atualizarIndicadores();
 
-    atualizarRanking();
+    atualizarOfensores();
 
-    atualizarAlertas();
+    atualizarRanking();
 
     atualizarResumo();
 
+    atualizarAlertas();
+
     atualizarGraficos();
+
+    renderizarHistorico();
 
 }
 
 
 /* =========================================================
-   ESTATÍSTICAS
-   ========================================================= */
+   CARDS
+========================================================= */
 
-function atualizarEstatisticas() {
+function atualizarCards() {
 
     const total =
         estado.dados.length;
 
 
+    const processadas =
+        estado.dados.filter(
+            item =>
+                item.classificacao
+        ).length;
+
+
     const criticas =
         estado.dados.filter(
-            d => d.prioridade === "CRITICA"
+            item =>
+                item.prioridade === "ALTA"
         ).length;
 
 
-    const resolvidas =
-        estado.dados.filter(
-            d => d.status === "RESOLVIDA"
-        ).length;
-
-
-    const taxa =
-        total > 0
+    const confianca =
+        total
             ? Math.round(
-                (resolvidas / total) * 100
+                estado.dados.reduce(
+                    (
+                        soma,
+                        item
+                    ) =>
+                        soma +
+                        Number(
+                            item.confianca ||
+                            0
+                        ),
+                    0
+                ) / total
             )
             : 0;
 
@@ -2092,172 +1729,17 @@ function atualizarEstatisticas() {
         total
     );
 
+
     definirTexto(
-        "totalCriticas",
+        "processadas",
+        processadas
+    );
+
+
+    definirTexto(
+        "demandasCriticas",
         criticas
     );
-
-    definirTexto(
-        "totalResolvidas",
-        resolvidas
-    );
-
-    definirTexto(
-        "taxaResolucao",
-        `${taxa}%`
-    );
-
-    definirTexto(
-        "menuTotalDemandas",
-        total
-    );
-
-    definirTexto(
-        "menuAlertas",
-        criticas
-    );
-
-    definirTexto(
-        "notificationCount",
-        criticas
-    );
-
-}
-
-
-/* =========================================================
-   OPERADORAS
-   ========================================================= */
-
-function atualizarOperadoras() {
-
-    const select =
-        $("filtroOperadora");
-
-    if (!select) return;
-
-
-    const atual =
-        select.value;
-
-
-    const operadoras =
-        [...new Set(
-            estado.dados
-                .map(d => d.operadora)
-                .filter(Boolean)
-        )]
-        .sort();
-
-
-    select.innerHTML = `
-        <option value="">Todas</option>
-    `;
-
-
-    operadoras.forEach(operadora => {
-
-        const option =
-            document.createElement("option");
-
-        option.value = operadora;
-
-        option.textContent = operadora;
-
-        select.appendChild(option);
-
-    });
-
-
-    if (
-        operadoras.includes(atual)
-    ) {
-
-        select.value = atual;
-
-    }
-
-}
-
-
-/* =========================================================
-   INDICADORES
-   ========================================================= */
-
-function atualizarIndicadores() {
-
-    const total =
-        estado.dados.length;
-
-
-    const contagem = {};
-
-    estado.dados.forEach(d => {
-
-        contagem[d.classificacao] =
-            (contagem[d.classificacao] || 0) + 1;
-
-    });
-
-
-    const dominante =
-        Object.entries(contagem)
-            .sort((a, b) => b[1] - a[1])[0];
-
-
-    const criticas =
-        estado.dados.filter(
-            d => d.prioridade === "CRITICA"
-        ).length;
-
-
-    const resolvidas =
-        estado.dados.filter(
-            d => d.status === "RESOLVIDA"
-        ).length;
-
-
-    const taxa =
-        total > 0
-            ? Math.round(
-                (resolvidas / total) * 100
-            )
-            : 0;
-
-
-    definirTexto(
-        "indicadorTotal",
-        total
-    );
-
-    definirTexto(
-        "indicadorDominante",
-        dominante
-            ? formatarTexto(dominante[0])
-            : "-"
-    );
-
-    definirTexto(
-        "indicadorTaxa",
-        `${taxa}%`
-    );
-
-    definirTexto(
-        "indicadorCriticas",
-        criticas
-    );
-
-
-    const confianca =
-        total > 0
-            ? Math.round(
-                estado.dados.reduce(
-                    (sum, d) =>
-                        sum + d.confianca,
-                    0
-                ) / total
-            )
-            : 0;
 
 
     definirTexto(
@@ -2266,135 +1748,256 @@ function atualizarIndicadores() {
     );
 
 
-    if ($("ultimaAnalise")) {
+    const ofensor =
+        obterDominante(
+            estado.dados,
+            "ofensor"
+        );
 
-        $("ultimaAnalise").textContent =
-            estado.ultimaAnalise
-                ? formatarDataHora(
-                    estado.ultimaAnalise
-                )
-                : "Nenhuma análise executada";
 
-    }
+    const classificacao =
+        obterDominante(
+            estado.dados,
+            "classificacao"
+        );
+
+
+    definirTexto(
+        "ofensorDominante",
+        formatarCategoria(
+            ofensor
+        )
+    );
+
+
+    definirTexto(
+        "classificacaoDominante",
+        formatarCategoria(
+            classificacao
+        )
+    );
+
+
+    definirTexto(
+        "altaConfianca",
+        estado.dados.filter(
+            item =>
+                item.nivelConfianca === "ALTA"
+        ).length
+    );
+
+
+    definirTexto(
+        "baixaConfianca",
+        estado.dados.filter(
+            item =>
+                item.nivelConfianca === "BAIXA"
+        ).length
+    );
+}
+
+
+/* =========================================================
+   FILTROS
+========================================================= */
+
+function iniciarFiltros() {
+
+    const ids = [
+        "searchDemandas",
+        "filtroClassificacao",
+        "filtroOfensor",
+        "filtroPrioridade",
+        "filtroConfianca"
+    ];
+
+
+    ids.forEach(id => {
+
+        const elemento =
+            document.getElementById(id);
+
+        if (!elemento) return;
+
+
+        elemento.addEventListener(
+            "input",
+            aplicarFiltros
+        );
+
+
+        elemento.addEventListener(
+            "change",
+            aplicarFiltros
+        );
+
+    });
 
 }
 
 
 /* =========================================================
-   RANKING
-   ========================================================= */
+   APLICAR FILTROS
+========================================================= */
 
-function atualizarRanking() {
+function aplicarFiltros() {
 
-    const contagem = {};
-
-    CONFIG.ofensores.forEach(ofensor => {
-
-        contagem[ofensor] = 0;
-
-    });
+    const busca =
+        obterValor(
+            "searchDemandas"
+        )
+        .toLowerCase();
 
 
-    estado.dados.forEach(registro => {
-
-        if (
-            contagem[registro.ofensor] !== undefined
-        ) {
-
-            contagem[registro.ofensor]++;
-
-        }
-
-    });
+    const classificacao =
+        obterValor(
+            "filtroClassificacao"
+        );
 
 
-    const ranking =
-        Object.entries(contagem)
-            .sort((a, b) => b[1] - a[1]);
+    const ofensor =
+        obterValor(
+            "filtroOfensor"
+        );
 
 
-    renderizarRankingPrincipal(ranking);
+    const prioridade =
+        obterValor(
+            "filtroPrioridade"
+        );
 
-    renderizarTopOfensores(ranking);
 
+    const confianca =
+        obterValor(
+            "filtroConfianca"
+        );
+
+
+    estado.dadosFiltrados =
+        estado.dados.filter(
+            item => {
+
+                const texto =
+                    [
+                        item.protocolo,
+                        item.beneficiario,
+                        item.reclamacao,
+                        item.classificacao,
+                        item.ofensor
+                    ]
+                    .join(" ")
+                    .toLowerCase();
+
+
+                if (
+                    busca &&
+                    !texto.includes(
+                        busca
+                    )
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    classificacao &&
+                    item.classificacao !==
+                    classificacao
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    ofensor &&
+                    item.ofensor !==
+                    ofensor
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    prioridade &&
+                    item.prioridade !==
+                    prioridade
+                ) {
+
+                    return false;
+
+                }
+
+
+                if (
+                    confianca &&
+                    item.nivelConfianca !==
+                    confianca
+                ) {
+
+                    return false;
+
+                }
+
+
+                return true;
+
+            }
+        );
+
+
+    renderizarTabela();
+
+    atualizarContadorTabela();
 }
 
 
-function renderizarRankingPrincipal(ranking) {
+/* =========================================================
+   RENDERIZAR TABELA
+========================================================= */
 
-    const container =
-        $("rankingOfensores");
+function renderizarTabela() {
 
-    if (!container) return;
+    const tbody =
+        document.getElementById(
+            "TabelaDemandasBody"
+        );
 
 
-    container.innerHTML = "";
+    if (!tbody) return;
 
 
-    ranking.forEach(
-        ([ofensor, quantidade], index) => {
+    if (
+        !estado.dadosFiltrados.length
+    ) {
 
-            container.innerHTML += `
+        tbody.innerHTML = `
 
-                <div class="ranking-card">
+            <tr>
 
-                    <div class="ranking-card-header">
+                <td
+                    colspan="10"
+                    class="empty-table"
+                >
 
-                        <div class="ranking-position">
-                            #${index + 1}
-                        </div>
+                    <i class="fa-solid fa-file-excel"></i>
 
-                        <i class="fas fa-user-shield"></i>
+                    <strong>
+                        Nenhuma demanda encontrada
+                    </strong>
 
-                    </div>
-
-                    <h3>
-                        ${formatarTexto(ofensor)}
-                    </h3>
-
-                    <div class="ranking-number">
-                        ${quantidade}
-                    </div>
-
-                    <span style="
-                        color:var(--text-secondary);
-                        font-size:10px;
-                    ">
-                        demanda(s)
+                    <span>
+                        Importe uma planilha ou altere os filtros.
                     </span>
 
-                </div>
+                </td>
 
-            `;
-
-        }
-    );
-
-
-}
-
-
-function renderizarTopOfensores(ranking) {
-
-    const container =
-        $("topOfensores");
-
-    if (!container) return;
-
-
-    if (estado.dados.length === 0) {
-
-        container.innerHTML = `
-
-            <div class="empty-state">
-
-                <i class="fas fa-ranking-star"></i>
-
-                <p>
-                    Nenhum dado disponível.
-                </p>
-
-            </div>
+            </tr>
 
         `;
 
@@ -2403,15 +2006,484 @@ function renderizarTopOfensores(ranking) {
     }
 
 
-    container.innerHTML = "";
+    tbody.innerHTML =
+        estado.dadosFiltrados
+        .map(
+            (item, index) =>
+                gerarLinhaTabela(
+                    item,
+                    index
+                )
+        )
+        .join("");
 
 
-    ranking
-        .slice(0, 5)
-        .forEach(
-            ([ofensor, quantidade], index) => {
+    tbody
+        .querySelectorAll(
+            "[data-detalhes]"
+        )
+        .forEach(botao => {
 
-                container.innerHTML += `
+            botao.addEventListener(
+                "click",
+                () => {
+
+                    const indice =
+                        Number(
+                            botao.dataset.detalhes
+                        );
+
+                    abrirDetalhes(
+                        estado.dadosFiltrados[
+                            indice
+                        ]
+                    );
+
+                }
+            );
+
+        });
+}
+
+
+/* =========================================================
+   LINHA DA TABELA
+========================================================= */
+
+function gerarLinhaTabela(
+    item,
+    index
+) {
+
+    return `
+
+        <tr>
+
+            <td>
+                ${index + 1}
+            </td>
+
+            <td>
+                <strong>
+                    ${escaparHTML(
+                        item.protocolo || "—"
+                    )}
+                </strong>
+            </td>
+
+            <td>
+                ${escaparHTML(
+                    item.beneficiario || "—"
+                )}
+            </td>
+
+            <td>
+                ${escaparHTML(
+                    item.data || "—"
+                )}
+            </td>
+
+            <td class="reclamacao-cell">
+                ${escaparHTML(
+                    item.reclamacao || "—"
+                )}
+            </td>
+
+            <td>
+                <span class="badge badge-classificacao">
+                    ${formatarCategoria(
+                        item.classificacao
+                    )}
+                </span>
+            </td>
+
+            <td>
+                <span class="badge badge-ofensor">
+                    ${formatarCategoria(
+                        item.ofensor
+                    )}
+                </span>
+            </td>
+
+            <td>
+                <span class="badge prioridade-${String(
+                    item.prioridade
+                ).toLowerCase()}">
+                    ${formatarCategoria(
+                        item.prioridade
+                    )}
+                </span>
+            </td>
+
+            <td>
+                <span class="confidence ${String(
+                    item.nivelConfianca
+                ).toLowerCase()}">
+                    ${item.confianca}%
+                </span>
+            </td>
+
+            <td>
+
+                <button
+                    class="table-action"
+                    data-detalhes="${index}"
+                    title="Ver detalhes"
+                    type="button"
+                >
+
+                    <i class="fa-solid fa-eye"></i>
+
+                </button>
+
+            </td>
+
+        </tr>
+
+    `;
+}
+
+
+/* =========================================================
+   CONTADOR
+========================================================= */
+
+function atualizarContadorTabela() {
+
+    const elemento =
+        document.getElementById(
+            "contadorTabela"
+        );
+
+
+    if (!elemento) return;
+
+
+    const quantidade =
+        estado.dadosFiltrados.length;
+
+
+    elemento.textContent =
+        `${quantidade} ${
+            quantidade === 1
+                ? "registro"
+                : "registros"
+        }`;
+}
+
+
+/* =========================================================
+   INDICADORES
+========================================================= */
+
+function atualizarIndicadores() {
+
+    const total =
+        estado.dados.length;
+
+
+    const dominante =
+        obterDominante(
+            estado.dados,
+            "classificacao"
+        );
+
+
+    const criticas =
+        estado.dados.filter(
+            item =>
+                item.prioridade === "ALTA"
+        ).length;
+
+
+    definirTexto(
+        "indicadorTotal",
+        total
+    );
+
+
+    definirTexto(
+        "indicadorDominante",
+        formatarCategoria(
+            dominante
+        )
+    );
+
+
+    definirTexto(
+        "indicadorTaxa",
+        total
+            ? "100%"
+            : "0%"
+    );
+
+
+    definirTexto(
+        "indicadorCriticas",
+        criticas
+    );
+
+
+    definirTexto(
+        "indicadorConfiancaAlta",
+        estado.dados.filter(
+            item =>
+                item.nivelConfianca === "ALTA"
+        ).length
+    );
+
+
+    definirTexto(
+        "indicadorConfiancaMedia",
+        estado.dados.filter(
+            item =>
+                item.nivelConfianca === "MEDIA"
+        ).length
+    );
+
+
+    definirTexto(
+        "indicadorConfiancaBaixa",
+        estado.dados.filter(
+            item =>
+                item.nivelConfianca === "BAIXA"
+        ).length
+    );
+
+
+    const processamento =
+        document.getElementById(
+            "indicadorProcessamento"
+        );
+
+
+    if (processamento) {
+
+        processamento.innerHTML =
+            total
+                ? `
+                    <strong>
+                        Processamento concluído
+                    </strong>
+
+                    <span>
+                        ${total} registros foram analisados.
+                    </span>
+                `
+                : `
+                    Nenhum processamento realizado.
+                `;
+
+    }
+}
+
+
+/* =========================================================
+   OFENSORES
+========================================================= */
+
+function atualizarOfensores() {
+
+    const contagens = {
+
+        LOGISTICA: 0,
+        FARMACIA: 0,
+        OPME: 0,
+        MEDICAMENTO: 0,
+        MATERIAL: 0,
+        COMPRA: 0
+
+    };
+
+
+    estado.dados.forEach(
+        item => {
+
+            if (
+                contagens[
+                    item.ofensor
+                ] !== undefined
+            ) {
+
+                contagens[
+                    item.ofensor
+                ]++;
+
+            }
+
+        }
+    );
+
+
+    definirTexto(
+        "ofensorLogistica",
+        contagens.LOGISTICA
+    );
+
+
+    definirTexto(
+        "ofensorFarmacia",
+        contagens.FARMACIA
+    );
+
+
+    definirTexto(
+        "ofensorOpme",
+        contagens.OPME
+    );
+
+
+    definirTexto(
+        "ofensorMedicamento",
+        contagens.MEDICAMENTO
+    );
+
+
+    definirTexto(
+        "ofensorMaterial",
+        contagens.MATERIAL
+    );
+
+
+    definirTexto(
+        "ofensorCompra",
+        contagens.COMPRA
+    );
+
+
+    const analise =
+        document.getElementById(
+            "analiseOfensores"
+        );
+
+
+    if (!analise) return;
+
+
+    if (!estado.dados.length) {
+
+        analise.innerHTML = `
+            <div class="empty-state">
+                Nenhuma análise disponível.
+            </div>
+        `;
+
+        return;
+
+    }
+
+
+    const ranking =
+        Object.entries(
+            contagens
+        )
+        .sort(
+            (a, b) =>
+                b[1] - a[1]
+        );
+
+
+    const maior =
+        ranking[0];
+
+
+    analise.innerHTML = `
+
+        <div class="executive-item">
+
+            <strong>
+                Principal ofensor
+            </strong>
+
+            <span>
+                ${formatarCategoria(
+                    maior[0]
+                )}
+                — ${maior[1]} demandas
+            </span>
+
+        </div>
+
+    `;
+}
+
+
+/* =========================================================
+   RANKING
+========================================================= */
+
+function atualizarRanking() {
+
+    const lista =
+        document.getElementById(
+            "rankingLista"
+        );
+
+
+    if (!lista) return;
+
+
+    if (!estado.dados.length) {
+
+        lista.innerHTML = `
+            <div class="empty-state">
+                Nenhuma análise disponível.
+            </div>
+        `;
+
+        return;
+
+    }
+
+
+    const contagem = {};
+
+
+    estado.dados.forEach(
+        item => {
+
+            contagem[
+                item.ofensor
+            ] =
+                (
+                    contagem[
+                        item.ofensor
+                    ] || 0
+                ) + 1;
+
+        }
+    );
+
+
+    const ranking =
+        Object.entries(
+            contagem
+        )
+        .sort(
+            (a, b) =>
+                b[1] - a[1]
+        );
+
+
+    const total =
+        estado.dados.length;
+
+
+    lista.innerHTML =
+        ranking
+        .map(
+            ([nome, quantidade], index) => {
+
+                const percentual =
+                    Math.round(
+                        (
+                            quantidade /
+                            total
+                        ) * 100
+                    );
+
+
+                return `
 
                     <div class="ranking-item">
 
@@ -2422,17 +2494,23 @@ function renderizarTopOfensores(ranking) {
                         <div class="ranking-info">
 
                             <strong>
-                                ${formatarTexto(ofensor)}
+                                ${formatarCategoria(
+                                    nome
+                                )}
                             </strong>
 
                             <span>
-                                Ofensor identificado
+                                ${quantidade} demandas
                             </span>
 
                         </div>
 
                         <div class="ranking-value">
-                            ${quantidade}
+
+                            <strong>
+                                ${percentual}%
+                            </strong>
+
                         </div>
 
                     </div>
@@ -2440,171 +2518,34 @@ function renderizarTopOfensores(ranking) {
                 `;
 
             }
-        );
-
-}
-
-
-/* =========================================================
-   ALERTAS
-   ========================================================= */
-
-function atualizarAlertas() {
-
-    const container =
-        $("listaAlertas");
-
-    if (!container) return;
-
-
-    const criticas =
-        estado.dados.filter(
-            d => d.prioridade === "CRITICA"
-        );
-
-
-    const altas =
-        estado.dados.filter(
-            d => d.prioridade === "ALTA"
-        );
-
-
-    if (
-        criticas.length === 0 &&
-        altas.length === 0
-    ) {
-
-        container.innerHTML = `
-
-            <div class="empty-state">
-
-                <i class="fas fa-shield-halved"></i>
-
-                <h4>Nenhum alerta</h4>
-
-                <p>
-                    Não existem demandas críticas ou altas.
-                </p>
-
-            </div>
-
-        `;
-
-        return;
-
-    }
-
-
-    container.innerHTML = "";
-
-
-    criticas.slice(0, 10)
-        .forEach(registro => {
-
-            container.innerHTML += criarAlerta(
-                registro,
-                "danger",
-                "fa-circle-exclamation"
-            );
-
-        });
-
-
-    altas.slice(0, 10)
-        .forEach(registro => {
-
-            container.innerHTML += criarAlerta(
-                registro,
-                "warning",
-                "fa-triangle-exclamation"
-            );
-
-        });
-
-}
-
-
-function criarAlerta(
-    registro,
-    tipo,
-    icone
-) {
-
-    return `
-
-        <div class="alert-item ${tipo}">
-
-            <div class="alert-icon">
-
-                <i class="fas ${icone}"></i>
-
-            </div>
-
-            <div class="alert-content">
-
-                <strong>
-                    Demanda ${escaparHTML(
-                        registro.protocolo
-                    )}
-                </strong>
-
-                <span>
-                    Prioridade ${formatarTexto(
-                        registro.prioridade
-                    )}
-                    ·
-                    Ofensor ${formatarTexto(
-                        registro.ofensor
-                    )}
-                </span>
-
-            </div>
-
-            <button
-                class="table-action"
-                onclick="abrirDetalhes(${registro.id})"
-            >
-
-                <i class="fas fa-eye"></i>
-
-            </button>
-
-        </div>
-
-    `;
-
+        )
+        .join("");
 }
 
 
 /* =========================================================
    RESUMO EXECUTIVO
-   ========================================================= */
+========================================================= */
 
 function atualizarResumo() {
 
-    const container =
-        $("resumoExecutivo");
+    const elemento =
+        document.getElementById(
+            "resumoExecutivo"
+        );
 
-    if (!container) return;
+
+    if (!elemento) return;
 
 
-    if (estado.dados.length === 0) {
+    if (!estado.dados.length) {
 
-        container.innerHTML = `
-
+        elemento.innerHTML = `
             <div class="empty-state">
-
-                <i class="fas fa-chart-simple"></i>
-
-                <h4>Nenhuma análise disponível</h4>
-
-                <p>
-                    Importe uma planilha para gerar
-                    o resumo executivo.
-                </p>
-
+                <i class="fa-solid fa-chart-column"></i>
+                <strong>Nenhuma planilha analisada</strong>
+                <span>Importe uma planilha para gerar o resumo.</span>
             </div>
-
         `;
 
         return;
@@ -2612,162 +2553,281 @@ function atualizarResumo() {
     }
 
 
-    const classificacoes = {};
-
-    estado.dados.forEach(d => {
-
-        classificacoes[d.classificacao] =
-            (classificacoes[d.classificacao] || 0) + 1;
-
-    });
-
-
-    const dominante =
-        Object.entries(classificacoes)
-            .sort((a,b) => b[1] - a[1])[0];
+    const total =
+        estado.dados.length;
 
 
     const criticas =
         estado.dados.filter(
-            d => d.prioridade === "CRITICA"
+            item =>
+                item.prioridade === "ALTA"
         ).length;
 
 
     const confianca =
         Math.round(
             estado.dados.reduce(
-                (sum, d) =>
-                    sum + d.confianca,
+                (soma, item) =>
+                    soma +
+                    item.confianca,
                 0
-            ) / estado.dados.length
+            ) / total
         );
 
 
-    container.innerHTML = `
-
-        <div class="summary-item">
-
-            <span>Total de demandas</span>
-
-            <strong>
-                ${estado.dados.length}
-            </strong>
-
-        </div>
+    const dominante =
+        obterDominante(
+            estado.dados,
+            "ofensor"
+        );
 
 
-        <div class="summary-item">
+    elemento.innerHTML = `
 
-            <span>Classificação predominante</span>
+        <div class="executive-summary">
 
-            <strong>
-                ${formatarTexto(
-                    dominante?.[0] || "-"
-                )}
-            </strong>
+            <div class="executive-item">
+                <strong>Total</strong>
+                <span>${total} demandas analisadas.</span>
+            </div>
 
-        </div>
+            <div class="executive-item">
+                <strong>Ofensor dominante</strong>
+                <span>${formatarCategoria(
+                    dominante
+                )}</span>
+            </div>
 
+            <div class="executive-item">
+                <strong>Demandas críticas</strong>
+                <span>${criticas}</span>
+            </div>
 
-        <div class="summary-item">
-
-            <span>Demandas críticas</span>
-
-            <strong class="text-danger">
-                ${criticas}
-            </strong>
-
-        </div>
-
-
-        <div class="summary-item">
-
-            <span>Confiança média</span>
-
-            <strong>
-                ${confianca}%
-            </strong>
+            <div class="executive-item">
+                <strong>Confiança média</strong>
+                <span>${confianca}%</span>
+            </div>
 
         </div>
 
     `;
+}
 
+
+/* =========================================================
+   ALERTAS
+========================================================= */
+
+function atualizarAlertas() {
+
+    const elemento =
+        document.getElementById(
+            "alertasSistema"
+        );
+
+
+    const lista =
+        document.getElementById(
+            "listaAlertas"
+        );
+
+
+    const criticas =
+        estado.dados.filter(
+            item =>
+                item.prioridade === "ALTA"
+        );
+
+
+    const baixaConfianca =
+        estado.dados.filter(
+            item =>
+                item.nivelConfianca === "BAIXA"
+        );
+
+
+    let html = "";
+
+
+    if (criticas.length) {
+
+        html += `
+
+            <div class="alert-item">
+
+                <i class="fa-solid fa-triangle-exclamation"></i>
+
+                <div>
+
+                    <strong>
+                        ${criticas.length} demandas críticas
+                    </strong>
+
+                    <span>
+                        Demandas classificadas com prioridade alta.
+                    </span>
+
+                </div>
+
+            </div>
+
+        `;
+
+    }
+
+
+    if (baixaConfianca.length) {
+
+        html += `
+
+            <div class="alert-item">
+
+                <i class="fa-solid fa-circle-question"></i>
+
+                <div>
+
+                    <strong>
+                        ${baixaConfianca.length} registros com baixa confiança
+                    </strong>
+
+                    <span>
+                        Recomenda-se revisão manual.
+                    </span>
+
+                </div>
+
+            </div>
+
+        `;
+
+    }
+
+
+    if (!html) {
+
+        html = `
+            <div class="empty-state">
+                <i class="fa-solid fa-shield-halved"></i>
+                <strong>Nenhum alerta</strong>
+                <span>O sistema não encontrou situações críticas.</span>
+            </div>
+        `;
+
+    }
+
+
+    if (elemento) {
+
+        elemento.innerHTML =
+            html;
+
+    }
+
+
+    if (lista) {
+
+        lista.innerHTML =
+            html;
+
+    }
 }
 
 
 /* =========================================================
    GRÁFICOS
-   ========================================================= */
+========================================================= */
 
 function atualizarGraficos() {
 
-    if (
-        typeof Chart === "undefined"
-    ) {
-
-        return;
-
-    }
+    if (!window.Chart) return;
 
 
     criarGraficoClassificacao();
 
     criarGraficoPrioridade();
 
-    criarGraficoOperadora();
+    criarGraficoDistribuicao();
 
     criarGraficoEvolucao();
 
+    criarGraficoOfensores();
+
 }
 
+
+/* =========================================================
+   DESTROY CHART
+========================================================= */
 
 function destruirGrafico(nome) {
 
-    if (estado.graficos[nome]) {
+    if (
+        estado.charts[nome]
+    ) {
 
-        estado.graficos[nome].destroy();
+        estado.charts[nome].destroy();
 
-        estado.graficos[nome] = null;
+        estado.charts[nome] =
+            null;
 
     }
+}
+
+
+/* =========================================================
+   CORES
+========================================================= */
+
+function coresGrafico() {
+
+    return [
+        "#2563eb",
+        "#10b981",
+        "#f59e0b",
+        "#ef4444",
+        "#8b5cf6",
+        "#06b6d4"
+    ];
 
 }
 
+
+/* =========================================================
+   CLASSIFICAÇÃO
+========================================================= */
 
 function criarGraficoClassificacao() {
 
     const canvas =
-        $("graficoClassificacao");
+        document.getElementById(
+            "graficoClassificacao"
+        );
+
 
     if (!canvas) return;
 
 
-    destruirGrafico("classificacao");
+    destruirGrafico(
+        "classificacao"
+    );
 
 
-    const contagem = {
-
-        MATERIAL: 0,
-        MEDICAMENTO: 0,
-        LOGISTICA: 0,
-        COMPRA: 0,
-        OPME: 0
-
-    };
+    const categorias =
+        CONFIG.classificacoes;
 
 
-    estado.dados.forEach(d => {
+    const valores =
+        categorias.map(
+            categoria =>
+                estado.dados.filter(
+                    item =>
+                        item.classificacao ===
+                        categoria
+                ).length
+        );
 
-        if (contagem[d.classificacao] !== undefined) {
 
-            contagem[d.classificacao]++;
-
-        }
-
-    });
-
-
-    estado.graficos.classificacao =
+    estado.charts.classificacao =
         new Chart(
             canvas,
             {
@@ -2775,27 +2835,19 @@ function criarGraficoClassificacao() {
 
                 data: {
 
-                    labels: [
-                        "Material",
-                        "Medicamento",
-                        "Logística",
-                        "Compra",
-                        "OPME"
-                    ],
+                    labels:
+                        categorias.map(
+                            formatarCategoria
+                        ),
 
-                    datasets: [{
-
-                        data: [
-                            contagem.MATERIAL,
-                            contagem.MEDICAMENTO,
-                            contagem.LOGISTICA,
-                            contagem.COMPRA,
-                            contagem.OPME
-                        ],
-
-                        borderWidth: 0
-
-                    }]
+                    datasets: [
+                        {
+                            data: valores,
+                            backgroundColor:
+                                coresGrafico(),
+                            borderWidth: 0
+                        }
+                    ]
 
                 },
 
@@ -2817,70 +2869,72 @@ function criarGraficoClassificacao() {
 
             }
         );
-
 }
 
+
+/* =========================================================
+   PRIORIDADE
+========================================================= */
 
 function criarGraficoPrioridade() {
 
     const canvas =
-        $("graficoPrioridade");
+        document.getElementById(
+            "graficoPrioridade"
+        );
+
 
     if (!canvas) return;
 
 
-    destruirGrafico("prioridade");
+    destruirGrafico(
+        "prioridade"
+    );
 
 
-    const contagem = {
-
-        CRITICA: 0,
-        ALTA: 0,
-        MEDIA: 0,
-        BAIXA: 0
-
-    };
+    const categorias = [
+        "ALTA",
+        "MEDIA",
+        "BAIXA"
+    ];
 
 
-    estado.dados.forEach(d => {
+    const valores =
+        categorias.map(
+            categoria =>
+                estado.dados.filter(
+                    item =>
+                        item.prioridade ===
+                        categoria
+                ).length
+        );
 
-        if (contagem[d.prioridade] !== undefined) {
 
-            contagem[d.prioridade]++;
-
-        }
-
-    });
-
-
-    estado.graficos.prioridade =
+    estado.charts.prioridade =
         new Chart(
             canvas,
             {
-
-                type: "bar",
+                type: "doughnut",
 
                 data: {
 
-                    labels: [
-                        "Crítica",
-                        "Alta",
-                        "Média",
-                        "Baixa"
-                    ],
+                    labels:
+                        categorias.map(
+                            formatarCategoria
+                        ),
 
-                    datasets: [{
-
-                        label: "Demandas",
-
-                        data: [
-                            contagem.CRITICA,
-                            contagem.ALTA,
-                            contagem.MEDIA,
-                            contagem.BAIXA
-                        ]
-
-                    }]
+                    datasets: [
+                        {
+                            data: valores,
+                            backgroundColor:
+                                [
+                                    "#ef4444",
+                                    "#f59e0b",
+                                    "#10b981"
+                                ],
+                            borderWidth: 0
+                        }
+                    ]
 
                 },
 
@@ -2891,15 +2945,9 @@ function criarGraficoPrioridade() {
                     maintainAspectRatio: false,
 
                     plugins: {
+
                         legend: {
-                            display: false
-                        }
-                    },
-
-                    scales: {
-
-                        y: {
-                            beginAtZero: true
+                            position: "bottom"
                         }
 
                     }
@@ -2908,65 +2956,67 @@ function criarGraficoPrioridade() {
 
             }
         );
-
 }
 
 
-function criarGraficoOperadora() {
+/* =========================================================
+   DISTRIBUIÇÃO
+========================================================= */
+
+function criarGraficoDistribuicao() {
 
     const canvas =
-        $("graficoOperadora");
+        document.getElementById(
+            "graficoDistribuicao"
+        );
+
 
     if (!canvas) return;
 
 
-    destruirGrafico("operadora");
+    destruirGrafico(
+        "distribuicao"
+    );
 
 
-    const contagem = {};
+    const categorias =
+        CONFIG.classificacoes;
 
 
-    estado.dados.forEach(d => {
-
-        const operadora =
-            d.operadora || "Não informado";
-
-        contagem[operadora] =
-            (contagem[operadora] || 0) + 1;
-
-    });
-
-
-    const ranking =
-        Object.entries(contagem)
-            .sort((a,b) => b[1] - a[1])
-            .slice(0, 10);
+    const valores =
+        categorias.map(
+            categoria =>
+                estado.dados.filter(
+                    item =>
+                        item.classificacao ===
+                        categoria
+                ).length
+        );
 
 
-    estado.graficos.operadora =
+    estado.charts.distribuicao =
         new Chart(
             canvas,
             {
-
                 type: "bar",
 
                 data: {
 
                     labels:
-                        ranking.map(
-                            item => item[0]
+                        categorias.map(
+                            formatarCategoria
                         ),
 
-                    datasets: [{
-
-                        label: "Demandas",
-
-                        data:
-                            ranking.map(
-                                item => item[1]
-                            )
-
-                    }]
+                    datasets: [
+                        {
+                            label:
+                                "Demandas",
+                            data:
+                                valores,
+                            backgroundColor:
+                                coresGrafico()
+                        }
+                    ]
 
                 },
 
@@ -2976,7 +3026,196 @@ function criarGraficoOperadora() {
 
                     maintainAspectRatio: false,
 
+                    scales: {
+
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+
+                    },
+
+                    plugins: {
+
+                        legend: {
+                            display: false
+                        }
+
+                    }
+
+                }
+
+            }
+        );
+}
+
+
+/* =========================================================
+   EVOLUÇÃO
+========================================================= */
+
+function criarGraficoEvolucao() {
+
+    const canvas =
+        document.getElementById(
+            "graficoEvolucao"
+        );
+
+
+    if (!canvas) return;
+
+
+    destruirGrafico(
+        "evolucao"
+    );
+
+
+    const dados =
+        agruparPorData(
+            estado.dados
+        );
+
+
+    estado.charts.evolucao =
+        new Chart(
+            canvas,
+            {
+                type: "line",
+
+                data: {
+
+                    labels:
+                        dados.labels,
+
+                    datasets: [
+                        {
+                            label:
+                                "Demandas",
+                            data:
+                                dados.valores,
+                            tension:
+                                0.3,
+                            fill:
+                                false
+                        }
+                    ]
+
+                },
+
+                options: {
+
+                    responsive: true,
+
+                    maintainAspectRatio: false,
+
+                    scales: {
+
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+
+                    }
+
+                }
+
+            }
+        );
+}
+
+
+/* =========================================================
+   OFENSORES
+========================================================= */
+
+function criarGraficoOfensores() {
+
+    const canvas =
+        document.getElementById(
+            "graficoOfensores"
+        );
+
+
+    if (!canvas) return;
+
+
+    destruirGrafico(
+        "ofensores"
+    );
+
+
+    const contagem = {};
+
+
+    estado.dados.forEach(
+        item => {
+
+            contagem[
+                item.ofensor
+            ] =
+                (
+                    contagem[
+                        item.ofensor
+                    ] || 0
+                ) + 1;
+
+        }
+    );
+
+
+    const ranking =
+        Object.entries(
+            contagem
+        )
+        .sort(
+            (a, b) =>
+                b[1] - a[1]
+        );
+
+
+    estado.charts.ofensores =
+        new Chart(
+            canvas,
+            {
+                type: "bar",
+
+                data: {
+
+                    labels:
+                        ranking.map(
+                            item =>
+                                formatarCategoria(
+                                    item[0]
+                                )
+                        ),
+
+                    datasets: [
+                        {
+                            label:
+                                "Demandas",
+                            data:
+                                ranking.map(
+                                    item =>
+                                        item[1]
+                                ),
+                            backgroundColor:
+                                coresGrafico()
+                        }
+                    ]
+
+                },
+
+                options: {
+
                     indexAxis: "y",
+
+                    responsive: true,
+
+                    maintainAspectRatio: false,
 
                     plugins: {
 
@@ -2989,7 +3228,10 @@ function criarGraficoOperadora() {
                     scales: {
 
                         x: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
                         }
 
                     }
@@ -2998,139 +3240,454 @@ function criarGraficoOperadora() {
 
             }
         );
-
 }
 
 
-function criarGraficoEvolucao() {
+/* =========================================================
+   AGRUPAR POR DATA
+========================================================= */
 
-    const canvas =
-        $("graficoEvolucao");
+function agruparPorData(dados) {
 
-    if (!canvas) return;
-
-
-    destruirGrafico("evolucao");
+    const mapa = {};
 
 
-    const contagem = {};
+    dados.forEach(
+        item => {
+
+            const data =
+                item.data ||
+                "Sem data";
 
 
-    estado.dados.forEach(d => {
+            mapa[data] =
+                (
+                    mapa[data] ||
+                    0
+                ) + 1;
 
-        const data =
-            normalizarData(d.data);
-
-        if (!data) return;
-
-        contagem[data] =
-            (contagem[data] || 0) + 1;
-
-    });
+        }
+    );
 
 
-    const ordenado =
-        Object.entries(contagem)
-            .sort((a,b) =>
-                a[0].localeCompare(b[0])
-            )
-            .slice(-12);
-
-
-    estado.graficos.evolucao =
-        new Chart(
-            canvas,
-            {
-
-                type: "line",
-
-                data: {
-
-                    labels:
-                        ordenado.map(
-                            item => item[0]
-                        ),
-
-                    datasets: [{
-
-                        label: "Demandas",
-
-                        data:
-                            ordenado.map(
-                                item => item[1]
-                            ),
-
-                        tension: 0.3,
-
-                        fill: false
-
-                    }]
-
-                },
-
-                options: {
-
-                    responsive: true,
-
-                    maintainAspectRatio: false,
-
-                    scales: {
-
-                        y: {
-                            beginAtZero: true
-                        }
-
-                    }
-
-                }
-
-            }
+    const labels =
+        Object.keys(
+            mapa
         );
+
+
+    return {
+
+        labels,
+
+        valores:
+            labels.map(
+                data =>
+                    mapa[data]
+            )
+
+    };
+}
+
+
+/* =========================================================
+   DETALHES
+========================================================= */
+
+function abrirDetalhes(item) {
+
+    const modal =
+        document.getElementById(
+            "modalDetalhes"
+        );
+
+
+    if (!modal) return;
+
+
+    const titulo =
+        modal.querySelector(
+            "[data-detalhe-titulo]"
+        );
+
+
+    const conteudo =
+        modal.querySelector(
+            "[data-detalhe-conteudo]"
+        );
+
+
+    if (titulo) {
+
+        titulo.textContent =
+            item.protocolo ||
+            "Detalhes da demanda";
+
+    }
+
+
+    if (conteudo) {
+
+        conteudo.innerHTML = `
+
+            <div class="detail-grid">
+
+                <div class="detail-item">
+                    <span>Protocolo</span>
+                    <strong>
+                        ${escaparHTML(
+                            item.protocolo || "—"
+                        )}
+                    </strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Beneficiário</span>
+                    <strong>
+                        ${escaparHTML(
+                            item.beneficiario || "—"
+                        )}
+                    </strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Data</span>
+                    <strong>
+                        ${escaparHTML(
+                            item.data || "—"
+                        )}
+                    </strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Classificação</span>
+                    <strong>
+                        ${formatarCategoria(
+                            item.classificacao
+                        )}
+                    </strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Ofensor</span>
+                    <strong>
+                        ${formatarCategoria(
+                            item.ofensor
+                        )}
+                    </strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Prioridade</span>
+                    <strong>
+                        ${formatarCategoria(
+                            item.prioridade
+                        )}
+                    </strong>
+                </div>
+
+                <div class="detail-item">
+                    <span>Confiança</span>
+                    <strong>
+                        ${item.confianca}%
+                    </strong>
+                </div>
+
+            </div>
+
+            <div class="detail-description">
+
+                <span>
+                    Reclamação / dados analisados
+                </span>
+
+                <p>
+                    ${escaparHTML(
+                        item.reclamacao || "—"
+                    )}
+                </p>
+
+            </div>
+
+        `;
+
+    }
+
+
+    modal.classList.add(
+        "active"
+    );
 
 }
 
 
 /* =========================================================
-   EXPORTAÇÃO
-   ========================================================= */
+   MODAIS
+========================================================= */
 
-function configurarExportacao() {
+function iniciarModais() {
 
-    const excel =
-        $("exportarExcel");
+    document
+        .querySelectorAll(
+            ".modal-close, .modal-overlay"
+        )
+        .forEach(
+            elemento => {
 
-    const csv =
-        $("exportarCSV");
+                elemento.addEventListener(
+                    "click",
+                    fecharModais
+                );
 
-    const relatorio =
-        $("exportarRelatorio");
+            }
+        );
 
 
-    if (excel) {
+    document.addEventListener(
+        "keydown",
+        evento => {
 
-        excel.addEventListener(
+            if (
+                evento.key === "Escape"
+            ) {
+
+                fecharModais();
+
+            }
+
+        }
+    );
+}
+
+
+function fecharModais() {
+
+    document
+        .querySelectorAll(
+            ".modal.active"
+        )
+        .forEach(
+            modal => {
+
+                modal.classList.remove(
+                    "active"
+                );
+
+            }
+        );
+}
+
+
+/* =========================================================
+   BOTÕES
+========================================================= */
+
+function iniciarBotoes() {
+
+    const tema =
+        document.getElementById(
+            "themeToggle"
+        );
+
+
+    if (tema) {
+
+        tema.addEventListener(
             "click",
-            exportarExcel
+            alternarTema
         );
 
     }
 
 
-    if (csv) {
+    const limpar =
+        document.querySelector(
+            '[data-action="limpar-filtros"]'
+        );
 
-        csv.addEventListener(
+
+    if (limpar) {
+
+        limpar.addEventListener(
             "click",
-            exportarCSV
+            limparFiltros
         );
 
     }
 
 
-    if (relatorio) {
+    const exportar =
+        document.getElementById(
+            "exportarResultados"
+        );
 
-        relatorio.addEventListener(
+
+    if (exportar) {
+
+        exportar.addEventListener(
             "click",
-            exportarRelatorio
+            () =>
+                exportarExcel(
+                    estado.dados,
+                    "SIGDH_resultados.xlsx"
+                )
+        );
+
+    }
+
+
+    const exportarFiltrado =
+        document.getElementById(
+            "exportarFiltrado"
+        );
+
+
+    if (exportarFiltrado) {
+
+        exportarFiltrado.addEventListener(
+            "click",
+            () =>
+                exportarExcel(
+                    estado.dadosFiltrados,
+                    "SIGDH_filtrado.xlsx"
+                )
+        );
+
+    }
+
+
+    const exportarCriticas =
+        document.getElementById(
+            "exportarCriticas"
+        );
+
+
+    if (exportarCriticas) {
+
+        exportarCriticas.addEventListener(
+            "click",
+            () => {
+
+                const dados =
+                    estado.dados.filter(
+                        item =>
+                            item.prioridade ===
+                            "ALTA"
+                    );
+
+
+                exportarExcel(
+                    dados,
+                    "SIGDH_criticas.xlsx"
+                );
+
+            }
+        );
+
+    }
+
+
+    const exportarBaixa =
+        document.getElementById(
+            "exportarBaixaConfianca"
+        );
+
+
+    if (exportarBaixa) {
+
+        exportarBaixa.addEventListener(
+            "click",
+            () => {
+
+                const dados =
+                    estado.dados.filter(
+                        item =>
+                            item.nivelConfianca ===
+                            "BAIXA"
+                    );
+
+
+                exportarExcel(
+                    dados,
+                    "SIGDH_baixa_confianca.xlsx"
+                );
+
+            }
+        );
+
+    }
+
+
+    const limparHistorico =
+        document.getElementById(
+            "limparHistorico"
+        );
+
+
+    if (limparHistorico) {
+
+        limparHistorico.addEventListener(
+            "click",
+            () => {
+
+                estado.historico = [];
+
+                localStorage.removeItem(
+                    "sigdH_historico"
+                );
+
+                renderizarHistorico();
+
+                mostrarToast(
+                    "Histórico apagado.",
+                    "success"
+                );
+
+            }
+        );
+
+    }
+
+
+    /* =====================================================
+       BOTÃO DE USUÁRIO
+    ===================================================== */
+
+    const perfil =
+        document.querySelector(
+            ".profile"
+        );
+
+
+    if (perfil) {
+
+        perfil.style.cursor =
+            "pointer";
+
+
+        perfil.addEventListener(
+            "click",
+            trocarUsuario
+        );
+
+    }
+
+
+    const usuarioMini =
+        document.querySelector(
+            ".user-mini"
+        );
+
+
+    if (usuarioMini) {
+
+        usuarioMini.style.cursor =
+            "pointer";
+
+
+        usuarioMini.addEventListener(
+            "click",
+            trocarUsuario
         );
 
     }
@@ -3138,9 +3695,274 @@ function configurarExportacao() {
 }
 
 
-function exportarExcel() {
+/* =========================================================
+   TROCA DE USUÁRIO
+========================================================= */
 
-    if (estado.dados.length === 0) {
+function trocarUsuario() {
+
+    const usuarios = [
+
+        {
+            nome: "Jamily Dias",
+            perfil: "Administradora",
+            iniciais: "JD"
+        },
+
+        {
+            nome: "Bruna Dias",
+            perfil: "Analista",
+            iniciais: "BD"
+        },
+
+        {
+            nome: "Gestor SIGDH",
+            perfil: "Gestor",
+            iniciais: "GS"
+        },
+
+        {
+            nome: "Operador SAC",
+            perfil: "Operador",
+            iniciais: "OS"
+        }
+
+    ];
+
+
+    const atual =
+        estado.usuario.nome;
+
+
+    const lista =
+        usuarios
+        .filter(
+            usuario =>
+                usuario.nome !==
+                atual
+        );
+
+
+    const escolha =
+        prompt(
+            "Trocar usuário:\n\n" +
+            lista
+            .map(
+                (
+                    usuario,
+                    index
+                ) =>
+                    `${index + 1}. ${usuario.nome} — ${usuario.perfil}`
+            )
+            .join("\n") +
+            "\n\nDigite o número:"
+        );
+
+
+    if (!escolha) return;
+
+
+    const indice =
+        Number(escolha) - 1;
+
+
+    if (
+        indice < 0 ||
+        indice >= lista.length
+    ) {
+
+        mostrarToast(
+            "Usuário inválido.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    estado.usuario =
+        lista[indice];
+
+
+    localStorage.setItem(
+        "sigdH_usuario",
+        JSON.stringify(
+            estado.usuario
+        )
+    );
+
+
+    atualizarUsuarioNaTela();
+
+
+    mostrarToast(
+        `Usuário alterado para ${estado.usuario.nome}.`,
+        "success"
+    );
+
+}
+
+
+/* =========================================================
+   ATUALIZAR USUÁRIO
+========================================================= */
+
+function atualizarUsuarioNaTela() {
+
+    const usuario =
+        estado.usuario;
+
+
+    document
+        .querySelectorAll(
+            ".profile-info strong"
+        )
+        .forEach(
+            elemento => {
+
+                elemento.textContent =
+                    usuario.nome;
+
+            }
+        );
+
+
+    document
+        .querySelectorAll(
+            ".profile-info span"
+        )
+        .forEach(
+            elemento => {
+
+                elemento.textContent =
+                    usuario.perfil;
+
+            }
+        );
+
+
+    document
+        .querySelectorAll(
+            ".profile .avatar"
+        )
+        .forEach(
+            elemento => {
+
+                elemento.textContent =
+                    usuario.iniciais;
+
+            }
+        );
+
+
+    document
+        .querySelectorAll(
+            ".user-mini-info strong"
+        )
+        .forEach(
+            elemento => {
+
+                elemento.textContent =
+                    usuario.nome;
+
+            }
+        );
+
+
+    document
+        .querySelectorAll(
+            ".user-mini-info span"
+        )
+        .forEach(
+            elemento => {
+
+                elemento.textContent =
+                    usuario.perfil;
+
+            }
+        );
+
+
+    document
+        .querySelectorAll(
+            ".user-mini .avatar"
+        )
+        .forEach(
+            elemento => {
+
+                elemento.textContent =
+                    usuario.iniciais;
+
+            }
+        );
+}
+
+
+/* =========================================================
+   LIMPAR FILTROS
+========================================================= */
+
+function limparFiltros() {
+
+    [
+        "searchDemandas",
+        "filtroClassificacao",
+        "filtroOfensor",
+        "filtroPrioridade",
+        "filtroConfianca"
+    ]
+    .forEach(
+        id => {
+
+            const elemento =
+                document.getElementById(
+                    id
+                );
+
+
+            if (!elemento) return;
+
+
+            elemento.value =
+                "";
+
+        }
+    );
+
+
+    aplicarFiltros();
+
+
+    mostrarToast(
+        "Filtros limpos.",
+        "success"
+    );
+}
+
+
+/* =========================================================
+   EXPORTAÇÃO
+========================================================= */
+
+function exportarExcel(
+    dados,
+    nomeArquivo
+) {
+
+    if (!window.XLSX) {
+
+        mostrarToast(
+            "Biblioteca XLSX não carregada.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if (!dados.length) {
 
         mostrarToast(
             "Não existem dados para exportar.",
@@ -3152,50 +3974,48 @@ function exportarExcel() {
     }
 
 
-    const dados =
-        estado.dados.map(d => ({
+    const linhas =
+        dados.map(
+            item => ({
 
-            "Nº REGISTRO":
-                d.registro,
+                "Nº":
+                    item.numero,
 
-            "PROTOCOLO":
-                d.protocolo,
+                "PROTOCOLO":
+                    item.protocolo,
 
-            "BENEFICIÁRIO":
-                d.beneficiario,
+                "BENEFICIÁRIO":
+                    item.beneficiario,
 
-            "DATA":
-                d.data,
+                "DATA":
+                    item.data,
 
-            "RECLAMAÇÃO":
-                d.reclamacao,
+                "RECLAMAÇÃO":
+                    item.reclamacao,
 
-            "PRESTADOR":
-                d.prestador,
+                "CLASSIFICAÇÃO":
+                    item.classificacao,
 
-            "OPERADORA":
-                d.operadora,
+                "OFENSOR":
+                    item.ofensor,
 
-            "CLASSIFICAÇÃO":
-                d.classificacao,
+                "PRIORIDADE":
+                    item.prioridade,
 
-            "OFENSOR":
-                d.ofensor,
+                "CONFIANÇA":
+                    `${item.confianca}%`,
 
-            "PRIORIDADE":
-                d.prioridade,
+                "NÍVEL CONFIANÇA":
+                    item.nivelConfianca
 
-            "CONFIANÇA":
-                `${d.confianca}%`,
-
-            "STATUS":
-                d.status
-
-        }));
+            })
+        );
 
 
     const worksheet =
-        XLSX.utils.json_to_sheet(dados);
+        XLSX.utils.json_to_sheet(
+            linhas
+        );
 
 
     const workbook =
@@ -3205,303 +4025,161 @@ function exportarExcel() {
     XLSX.utils.book_append_sheet(
         workbook,
         worksheet,
-        "Resultado"
+        "Resultados"
     );
 
 
     XLSX.writeFile(
         workbook,
-        "resultado_SIGDH_5.0.xlsx"
+        nomeArquivo
     );
 
 
     mostrarToast(
-        "Excel exportado com sucesso.",
+        "Arquivo exportado com sucesso.",
         "success"
     );
-
-}
-
-
-function exportarCSV() {
-
-    if (estado.dados.length === 0) {
-
-        mostrarToast(
-            "Não existem dados para exportar.",
-            "warning"
-        );
-
-        return;
-
-    }
-
-
-    const dados =
-        estado.dados.map(d => ({
-
-            REGISTRO: d.registro,
-            PROTOCOLO: d.protocolo,
-            BENEFICIARIO: d.beneficiario,
-            DATA: d.data,
-            RECLAMACAO: d.reclamacao,
-            PRESTADOR: d.prestador,
-            OPERADORA: d.operadora,
-            CLASSIFICACAO: d.classificacao,
-            OFENSOR: d.ofensor,
-            PRIORIDADE: d.prioridade,
-            CONFIANCA: `${d.confianca}%`,
-            STATUS: d.status
-
-        }));
-
-
-    const worksheet =
-        XLSX.utils.json_to_sheet(dados);
-
-
-    const csv =
-        XLSX.utils.sheet_to_csv(
-            worksheet,
-            {
-                FS: ";"
-            }
-        );
-
-
-    const blob =
-        new Blob(
-            ["\ufeff" + csv],
-            {
-                type: "text/csv;charset=utf-8;"
-            }
-        );
-
-
-    const url =
-        URL.createObjectURL(blob);
-
-
-    const link =
-        document.createElement("a");
-
-
-    link.href = url;
-
-    link.download =
-        "resultado_SIGDH_5.0.csv";
-
-
-    link.click();
-
-    URL.revokeObjectURL(url);
-
-
-    mostrarToast(
-        "CSV exportado com sucesso.",
-        "success"
-    );
-
-}
-
-
-function exportarRelatorio() {
-
-    if (estado.dados.length === 0) {
-
-        mostrarToast(
-            "Não existem dados para gerar o relatório.",
-            "warning"
-        );
-
-        return;
-
-    }
-
-
-    const total =
-        estado.dados.length;
-
-
-    const criticas =
-        estado.dados.filter(
-            d => d.prioridade === "CRITICA"
-        ).length;
-
-
-    const classificacoes = {};
-
-    estado.dados.forEach(d => {
-
-        classificacoes[d.classificacao] =
-            (classificacoes[d.classificacao] || 0) + 1;
-
-    });
-
-
-    const dominante =
-        Object.entries(classificacoes)
-            .sort((a,b) => b[1] - a[1])[0];
-
-
-    const confianca =
-        Math.round(
-            estado.dados.reduce(
-                (sum,d) =>
-                    sum + d.confianca,
-                0
-            ) / total
-        );
-
-
-    const texto = `
-
-SIGDH 5.0
-RELATÓRIO EXECUTIVO
-
-Data: ${formatarDataHora(new Date())}
-
-========================================
-
-RESUMO
-
-Total de demandas: ${total}
-
-Demandas críticas: ${criticas}
-
-Classificação predominante:
-${formatarTexto(dominante?.[0] || "-")}
-
-Confiança média:
-${confianca}%
-
-========================================
-
-OFENSORES
-
-${CONFIG.ofensores.map(ofensor => {
-
-    const quantidade =
-        estado.dados.filter(
-            d => d.ofensor === ofensor
-        ).length;
-
-    return `${formatarTexto(ofensor)}: ${quantidade}`;
-
-}).join("\n")}
-
-========================================
-
-Gerado pelo SIGDH 5.0
-
-`;
-
-
-    const blob =
-        new Blob(
-            [texto],
-            {
-                type: "text/plain;charset=utf-8"
-            }
-        );
-
-
-    const url =
-        URL.createObjectURL(blob);
-
-
-    const link =
-        document.createElement("a");
-
-
-    link.href = url;
-
-    link.download =
-        "relatorio_executivo_SIGDH_5.0.txt";
-
-
-    link.click();
-
-    URL.revokeObjectURL(url);
-
-
-    mostrarToast(
-        "Relatório gerado com sucesso.",
-        "success"
-    );
-
 }
 
 
 /* =========================================================
    HISTÓRICO
-   ========================================================= */
+========================================================= */
 
-function salvarHistoricoImportacao(
-    nome,
+function registrarHistorico(
+    arquivo,
     quantidade
 ) {
 
-    const historico =
-        JSON.parse(
-            localStorage.getItem(
-                "sigdH_historico"
-            ) || "[]"
-        );
+    const registro = {
 
+        id:
+            Date.now(),
 
-    historico.unshift({
+        nome:
+            arquivo.name,
 
-        nome,
+        tamanho:
+            arquivo.size,
 
         quantidade,
 
         data:
-            new Date().toISOString()
+            new Date().toLocaleString(
+                "pt-BR"
+            )
 
-    });
+    };
+
+
+    estado.historico.unshift(
+        registro
+    );
+
+
+    estado.historico =
+        estado.historico.slice(
+            0,
+            20
+        );
 
 
     localStorage.setItem(
         "sigdH_historico",
         JSON.stringify(
-            historico.slice(0, 20)
+            estado.historico
         )
     );
+}
 
 
-    renderizarHistorico();
+function carregarHistorico() {
+
+    const salvo =
+        localStorage.getItem(
+            "sigdH_historico"
+        );
+
+
+    if (!salvo) return;
+
+
+    try {
+
+        estado.historico =
+            JSON.parse(
+                salvo
+            );
+
+    } catch {
+
+        estado.historico = [];
+
+    }
+
+
+    const usuarioSalvo =
+        localStorage.getItem(
+            "sigdH_usuario"
+        );
+
+
+    if (usuarioSalvo) {
+
+        try {
+
+            estado.usuario =
+                JSON.parse(
+                    usuarioSalvo
+                );
+
+            atualizarUsuarioNaTela();
+
+        } catch {
+
+            console.warn(
+                "Usuário salvo inválido."
+            );
+
+        }
+
+    }
 
 }
 
 
+/* =========================================================
+   RENDERIZAR HISTÓRICO
+========================================================= */
+
 function renderizarHistorico() {
 
-    const container =
-        $("historicoImportacoes");
-
-    if (!container) return;
-
-
-    const historico =
-        JSON.parse(
-            localStorage.getItem(
-                "sigdH_historico"
-            ) || "[]"
+    const elemento =
+        document.getElementById(
+            "historicoLista"
         );
 
 
-    if (historico.length === 0) {
+    if (!elemento) return;
 
-        container.innerHTML = `
+
+    if (
+        !estado.historico.length
+    ) {
+
+        elemento.innerHTML = `
 
             <div class="empty-state">
 
-                <i class="fas fa-clock-rotate-left"></i>
+                <i class="fa-solid fa-clock-rotate-left"></i>
 
-                <p>
-                    Nenhuma importação realizada.
-                </p>
+                <strong>
+                    Nenhuma importação registrada
+                </strong>
+
+                <span>
+                    O histórico será criado após uma importação.
+                </span>
 
             </div>
 
@@ -3512,171 +4190,192 @@ function renderizarHistorico() {
     }
 
 
-    container.innerHTML = "";
+    elemento.innerHTML =
+        estado.historico
+        .map(
+            item => `
 
+                <div class="history-item">
 
-    historico.forEach(item => {
+                    <div class="history-icon">
 
-        container.innerHTML += `
+                        <i class="fa-solid fa-file-excel"></i>
 
-            <div class="history-item">
+                    </div>
 
-                <div class="history-icon">
+                    <div class="history-info">
 
-                    <i class="fas fa-file-excel"></i>
+                        <strong>
+                            ${escaparHTML(
+                                item.nome
+                            )}
+                        </strong>
+
+                        <span>
+                            ${item.data}
+                        </span>
+
+                    </div>
+
+                    <div class="history-count">
+
+                        <strong>
+                            ${item.quantidade}
+                        </strong>
+
+                        <span>
+                            registros
+                        </span>
+
+                    </div>
 
                 </div>
 
-                <div class="history-info">
-
-                    <strong>
-                        ${escaparHTML(item.nome)}
-                    </strong>
-
-                    <span>
-                        ${item.quantidade} registro(s)
-                        ·
-                        ${formatarDataHora(
-                            new Date(item.data)
-                        )}
-                    </span>
-
-                </div>
-
-            </div>
-
-        `;
-
-    });
-
+            `
+        )
+        .join("");
 }
 
 
 /* =========================================================
    PROGRESSO
-   ========================================================= */
+========================================================= */
 
 function mostrarProgresso(
-    porcentagem,
-    nome
+    percentual,
+    texto
 ) {
 
-    const progress =
-        $("importProgress");
-
-    const bar =
-        $("progressBar");
-
-    const percent =
-        $("progressPercent");
-
-    const arquivo =
-        $("arquivoNome");
+    const area =
+        document.getElementById(
+            "importProgress"
+        );
 
 
-    if (progress) {
+    const barra =
+        document.getElementById(
+            "progressBar"
+        );
 
-        progress.classList.remove(
+
+    const porcentagem =
+        document.getElementById(
+            "progressPercent"
+        );
+
+
+    const textoElemento =
+        document.querySelector(
+            "[data-progress-text]"
+        );
+
+
+    if (area) {
+
+        area.classList.remove(
             "hidden"
         );
 
     }
 
-    if (bar) {
 
-        bar.style.width =
-            `${porcentagem}%`;
+    if (barra) {
 
-    }
-
-    if (percent) {
-
-        percent.textContent =
-            `${porcentagem}%`;
+        barra.style.width =
+            `${percentual}%`;
 
     }
 
-    if (arquivo) {
 
-        arquivo.textContent =
-            nome;
+    if (porcentagem) {
+
+        porcentagem.textContent =
+            `${percentual}%`;
+
+    }
+
+
+    if (textoElemento) {
+
+        textoElemento.textContent =
+            texto;
 
     }
 
 }
 
 
-function ocultarProgresso() {
+function esconderProgresso() {
 
-    const progress =
-        $("importProgress");
+    const area =
+        document.getElementById(
+            "importProgress"
+        );
 
-    if (progress) {
 
-        progress.classList.add(
+    if (area) {
+
+        area.classList.add(
             "hidden"
         );
 
     }
-
-}
-
-
-function mostrarResultadoImportacao(
-    nome,
-    quantidade
-) {
-
-    const result =
-        $("importResult");
-
-    if (!result) return;
-
-
-    result.classList.remove(
-        "hidden"
-    );
-
-
-    result.innerHTML = `
-
-        <strong>
-            <i class="fas fa-circle-check"></i>
-            Importação concluída
-        </strong>
-
-        <p style="margin-top:6px;">
-            Arquivo:
-            <strong>
-                ${escaparHTML(nome)}
-            </strong>
-            ·
-            ${quantidade} registro(s)
-            processado(s).
-        </p>
-
-    `;
-
 }
 
 
 /* =========================================================
    TOAST
-   ========================================================= */
+========================================================= */
 
 function mostrarToast(
     mensagem,
     tipo = "info"
 ) {
 
-    const container =
-        $("toastContainer");
+    let container =
+        document.getElementById(
+            "toastContainer"
+        );
 
-    if (!container) return;
+
+    if (!container) {
+
+        container =
+            document.querySelector(
+                ".toast-container"
+            );
+
+    }
+
+
+    if (!container) {
+
+        container =
+            document.createElement(
+                "div"
+            );
+
+        container.id =
+            "toastContainer";
+
+        container.className =
+            "toast-container";
+
+        document.body.appendChild(
+            container
+        );
+
+    }
 
 
     const toast =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
+
+
+    toast.className =
+        `toast toast-${tipo}`;
 
 
     const icones = {
@@ -3696,206 +4395,275 @@ function mostrarToast(
     };
 
 
-    toast.className =
-        `toast ${tipo}`;
-
-
     toast.innerHTML = `
 
-        <i class="fas ${icones[tipo] || icones.info}"></i>
+        <i class="fa-solid ${
+            icones[tipo] ||
+            icones.info
+        }"></i>
 
         <span>
-            ${escaparHTML(mensagem)}
+            ${escaparHTML(
+                mensagem
+            )}
         </span>
 
     `;
 
 
-    container.appendChild(toast);
+    container.appendChild(
+        toast
+    );
 
 
-    setTimeout(() => {
+    setTimeout(
+        () => {
 
-        toast.style.opacity = "0";
+            toast.classList.add(
+                "removing"
+            );
 
-        toast.style.transform =
-            "translateX(20px)";
+            setTimeout(
+                () => {
 
+                    toast.remove();
 
-        setTimeout(() => {
+                },
+                300
+            );
 
-            toast.remove();
-
-        }, 250);
-
-    }, 3500);
-
+        },
+        3500
+    );
 }
 
 
 /* =========================================================
-   FUNÇÕES AUXILIARES
-   ========================================================= */
+   UTILITÁRIOS
+========================================================= */
 
-function normalizarTexto(valor) {
+function definirTexto(
+    id,
+    valor
+) {
 
-    return String(valor ?? "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase()
-        .trim();
-
-}
-
-
-function contemAlgum(texto, lista) {
-
-    return lista.some(
-        termo =>
-            texto.includes(
-                normalizarTexto(termo)
-            )
-    );
-
-}
-
-
-function formatarTexto(valor) {
-
-    return String(valor || "")
-        .toLowerCase()
-        .replace(/_/g, " ")
-        .replace(
-            /\b\w/g,
-            letra => letra.toUpperCase()
+    const elemento =
+        document.getElementById(
+            id
         );
 
-}
-
-
-function limitarTexto(texto, limite) {
-
-    const valor =
-        String(texto || "");
-
-    if (valor.length <= limite) {
-        return valor;
-    }
-
-    return valor.substring(
-        0,
-        limite
-    ) + "...";
-
-}
-
-
-function escaparHTML(valor) {
-
-    return String(valor ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-
-}
-
-
-function definirTexto(id, valor) {
-
-    const elemento = $(id);
 
     if (elemento) {
 
-        elemento.textContent = valor;
+        elemento.textContent =
+            valor;
 
     }
 
 }
 
 
-function aguardar(ms) {
+function obterValor(id) {
 
-    return new Promise(resolve =>
-        setTimeout(resolve, ms)
-    );
-
-}
-
-
-function formatarDataHora(data) {
-
-    if (!(data instanceof Date)) {
-
-        data = new Date(data);
-
-    }
-
-
-    if (isNaN(data.getTime())) {
-
-        return "-";
-
-    }
-
-
-    return data.toLocaleString(
-        "pt-BR",
-        {
-            dateStyle: "short",
-            timeStyle: "short"
-        }
-    );
-
-}
-
-
-function normalizarData(valor) {
-
-    if (!valor) return "";
-
-    const texto =
-        String(valor).trim();
-
-
-    let data;
-
-
-    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(texto)) {
-
-        const partes =
-            texto.split("/");
-
-        data = new Date(
-            Number(partes[2]),
-            Number(partes[1]) - 1,
-            Number(partes[0])
+    const elemento =
+        document.getElementById(
+            id
         );
 
-    } else {
 
-        data = new Date(texto);
+    return elemento
+        ? elemento.value
+        : "";
+}
 
-    }
 
+function obterDominante(
+    dados,
+    propriedade
+) {
 
-    if (isNaN(data.getTime())) {
+    if (!dados.length) {
 
         return "";
 
     }
 
 
-    return data.toISOString()
-        .slice(0, 10);
+    const contagem = {};
+
+
+    dados.forEach(
+        item => {
+
+            const valor =
+                item[
+                    propriedade
+                ];
+
+
+            if (!valor) return;
+
+
+            contagem[valor] =
+                (
+                    contagem[valor] ||
+                    0
+                ) + 1;
+
+        }
+    );
+
+
+    const ranking =
+        Object.entries(
+            contagem
+        )
+        .sort(
+            (a, b) =>
+                b[1] - a[1]
+        );
+
+
+    return ranking.length
+        ? ranking[0][0]
+        : "";
+}
+
+
+function formatarCategoria(
+    valor
+) {
+
+    if (!valor) {
+
+        return "—";
+
+    }
+
+
+    const mapa = {
+
+        MATERIAL:
+            "Material",
+
+        MEDICAMENTO:
+            "Medicamento",
+
+        LOGISTICA:
+            "Logística",
+
+        COMPRA:
+            "Compra",
+
+        OPME:
+            "OPME",
+
+        FARMACIA:
+            "Farmácia",
+
+        ALTA:
+            "Alta",
+
+        MEDIA:
+            "Média",
+
+        BAIXA:
+            "Baixa"
+
+    };
+
+
+    return mapa[
+        String(valor).toUpperCase()
+    ] ||
+        valor;
+
+}
+
+
+function obterValorAlternativo(
+    linha,
+    indices
+) {
+
+    for (
+        const indice of indices
+    ) {
+
+        const valor =
+            normalizarTexto(
+                linha[indice]
+            );
+
+
+        if (valor) {
+
+            return valor;
+
+        }
+
+    }
+
+
+    return "";
+}
+
+
+/* =========================================================
+   SEGURANÇA HTML
+========================================================= */
+
+function escaparHTML(
+    valor
+) {
+
+    return String(
+        valor ?? ""
+    )
+    .replace(
+        /&/g,
+        "&amp;"
+    )
+    .replace(
+        /</g,
+        "&lt;"
+    )
+    .replace(
+        />/g,
+        "&gt;"
+    )
+    .replace(
+        /"/g,
+        "&quot;"
+    )
+    .replace(
+        /'/g,
+        "&#039;"
+    );
 
 }
 
 
 /* =========================================================
-   FINAL
-   ========================================================= */
+   FINALIZAÇÃO
+========================================================= */
 
-renderizarHistorico();
-```
+window.SIGDH = {
+
+    estado,
+
+    importar:
+        processarArquivo,
+
+    exportar:
+        exportarExcel,
+
+    mudarSecao,
+
+    alternarTema,
+
+    trocarUsuario,
+
+    limparFiltros
+
+};
