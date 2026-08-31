@@ -1,17 +1,19 @@
+```javascript
 /* =========================================================
-   SIGDH 4.0
-   SCRIPT.JS
-   Sistema Integrado de Gestão e Análise de Demandas
-========================================================= */
+   SIGDH 5.0
+   SCRIPT PRINCIPAL
+   ========================================================= */
 
 "use strict";
 
 /* =========================================================
-   CONFIGURAÇÃO
-========================================================= */
+   CONFIGURAÇÕES
+   ========================================================= */
 
 const CONFIG = {
-    colunasAnalisadas: [
+    registrosPorPagina: 15,
+
+    colunasAnalise: [
         "A",
         "G",
         "I",
@@ -34,25 +36,18 @@ const CONFIG = {
     ],
 
     ofensores: [
-        "LOGISTICA",
         "FARMACIA",
+        "LOGISTICA",
         "OPME",
         "MEDICAMENTO",
-        "MATERIAL",
-        "COMPRA"
-    ],
-
-    prioridades: [
-        "ALTA",
-        "MEDIA",
-        "BAIXA"
+        "MATERIAL"
     ]
 };
 
 
 /* =========================================================
-   ESTADO GLOBAL
-========================================================= */
+   ESTADO DO SISTEMA
+   ========================================================= */
 
 const estado = {
 
@@ -60,351 +55,156 @@ const estado = {
 
     dadosFiltrados: [],
 
+    paginaAtual: 1,
+
     arquivoAtual: null,
 
-    charts: {},
+    ultimaAnalise: null,
 
-    usuario: {
-        nome: "Jamily Dias",
-        perfil: "Administradora",
-        iniciais: "JD"
-    },
+    graficos: {},
 
-    tema: localStorage.getItem("sigdH_tema") || "light",
+    darkMode: false,
 
-    historico:
-        JSON.parse(
-            localStorage.getItem("sigdH_historico") || "[]"
-        )
+    filtros: {
+        pesquisa: "",
+        classificacao: "",
+        operadora: "",
+        prioridade: "",
+        ofensor: ""
+    }
+
 };
 
 
 /* =========================================================
+   ELEMENTOS
+   ========================================================= */
+
+const $ = id => document.getElementById(id);
+
+const qs = selector => document.querySelector(selector);
+
+const qsa = selector => document.querySelectorAll(selector);
+
+
+/* =========================================================
    INICIALIZAÇÃO
-========================================================= */
+   ========================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
 
-    aplicarTema();
+    iniciarSistema();
 
-    iniciarRelogio();
+});
 
-    iniciarMenu();
 
-    iniciarImportacao();
+function iniciarSistema() {
 
-    iniciarFiltros();
+    carregarConfiguracoes();
 
-    iniciarBotoes();
+    configurarNavegacao();
 
-    iniciarModais();
+    configurarSidebar();
 
-    carregarHistorico();
+    configurarTema();
+
+    configurarImportacao();
+
+    configurarFiltros();
+
+    configurarModal();
+
+    configurarExportacao();
+
+    configurarMotorAnalise();
 
     atualizarInterface();
 
     setTimeout(() => {
 
-        const loading =
-            document.getElementById("loadingScreen");
+        const loading = $("loadingScreen");
 
         if (loading) {
-
             loading.classList.add("hidden");
-
-            setTimeout(() => {
-                loading.style.display = "none";
-            }, 500);
-
         }
 
-    }, 900);
+    }, 700);
 
-});
-
-
-/* =========================================================
-   TEMA
-========================================================= */
-
-function aplicarTema() {
-
-    const tema =
-        localStorage.getItem("sigdH_tema") || "light";
-
-    estado.tema = tema;
-
-    document.documentElement.setAttribute(
-        "data-theme",
-        tema
-    );
-
-    document.body.classList.toggle(
-        "dark-mode",
-        tema === "dark"
-    );
-
-    atualizarIconeTema();
-}
-
-
-function alternarTema() {
-
-    estado.tema =
-        estado.tema === "dark"
-            ? "light"
-            : "dark";
-
-    localStorage.setItem(
-        "sigdH_tema",
-        estado.tema
-    );
-
-    document.documentElement.setAttribute(
-        "data-theme",
-        estado.tema
-    );
-
-    document.body.classList.toggle(
-        "dark-mode",
-        estado.tema === "dark"
-    );
-
-    atualizarIconeTema();
-
-    atualizarGraficos();
-
-    mostrarToast(
-        estado.tema === "dark"
-            ? "Modo escuro ativado."
-            : "Modo claro ativado.",
-        "success"
-    );
-}
-
-
-function atualizarIconeTema() {
-
-    const botao =
-        document.getElementById("themeToggle");
-
-    if (!botao) return;
-
-    const icone =
-        botao.querySelector("i");
-
-    if (!icone) return;
-
-    if (estado.tema === "dark") {
-
-        icone.className =
-            "fa-solid fa-sun";
-
-        botao.title =
-            "Ativar modo claro";
-
-    } else {
-
-        icone.className =
-            "fa-solid fa-moon";
-
-        botao.title =
-            "Ativar modo escuro";
-
-    }
 }
 
 
 /* =========================================================
-   RELÓGIO
-========================================================= */
+   NAVEGAÇÃO
+   ========================================================= */
 
-function iniciarRelogio() {
+function configurarNavegacao() {
 
-    function atualizar() {
+    qsa(".menu-item").forEach(item => {
 
-        const elemento =
-            document.querySelector("[data-clock]");
+        item.addEventListener("click", () => {
 
-        if (!elemento) return;
+            const section = item.dataset.section;
 
-        const agora = new Date();
+            navegarPara(section);
 
-        elemento.textContent =
-            agora.toLocaleTimeString(
-                "pt-BR",
-                {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit"
-                }
-            );
-    }
+        });
 
-    atualizar();
+    });
 
-    setInterval(
-        atualizar,
-        1000
-    );
 }
 
 
-/* =========================================================
-   MENU
-========================================================= */
+function navegarPara(sectionId) {
 
-function iniciarMenu() {
+    const sections = qsa(".page-section");
 
-    const itens =
-        document.querySelectorAll(
-            ".menu-item"
-        );
+    const menus = qsa(".menu-item");
 
-    itens.forEach(item => {
+    sections.forEach(section => {
 
-        item.addEventListener(
-            "click",
-            () => {
-
-                const section =
-                    item.dataset.section;
-
-                if (!section) return;
-
-                mudarSecao(section);
-
-            }
-        );
+        section.classList.remove("active");
 
     });
-
-
-    const botoesImportacao =
-        document.querySelectorAll(
-            '[data-action="nova-importacao"]'
-        );
-
-    botoesImportacao.forEach(botao => {
-
-        botao.addEventListener(
-            "click",
-            () => {
-
-                mudarSecao("importacao");
-
-            }
-        );
-
-    });
-
-
-    const abrirSidebar =
-        document.getElementById(
-            "openSidebar"
-        );
-
-    if (abrirSidebar) {
-
-        abrirSidebar.addEventListener(
-            "click",
-            () => {
-
-                const sidebar =
-                    document.getElementById(
-                        "sidebar"
-                    );
-
-                if (sidebar) {
-
-                    sidebar.classList.toggle(
-                        "mobile-open"
-                    );
-
-                }
-
-            }
-        );
-
-    }
-}
-
-
-function mudarSecao(nome) {
-
-    const secoes =
-        document.querySelectorAll(
-            ".page-section"
-        );
-
-    secoes.forEach(secao => {
-
-        secao.classList.remove(
-            "active"
-        );
-
-    });
-
-
-    const destino =
-        document.getElementById(nome);
-
-    if (destino) {
-
-        destino.classList.add(
-            "active"
-        );
-
-    }
-
-
-    const menus =
-        document.querySelectorAll(
-            ".menu-item"
-        );
 
     menus.forEach(menu => {
 
-        menu.classList.toggle(
-            "active",
-            menu.dataset.section === nome
-        );
+        menu.classList.remove("active");
 
     });
 
+    const section = $(sectionId);
 
-    atualizarCabecalho(nome);
+    const menu = qs(`.menu-item[data-section="${sectionId}"]`);
 
+    if (section) {
 
-    const sidebar =
-        document.getElementById("sidebar");
-
-    if (sidebar) {
-
-        sidebar.classList.remove(
-            "mobile-open"
-        );
+        section.classList.add("active");
 
     }
+
+    if (menu) {
+
+        menu.classList.add("active");
+
+    }
+
+    atualizarTitulo(sectionId);
 
     window.scrollTo({
         top: 0,
         behavior: "smooth"
     });
+
 }
 
 
-/* =========================================================
-   CABEÇALHO
-========================================================= */
-
-function atualizarCabecalho(secao) {
+function atualizarTitulo(sectionId) {
 
     const titulos = {
 
         dashboard: [
             "Dashboard",
-            "Visão geral das demandas hospitalares"
+            "Visão geral do sistema"
         ],
 
         demandas: [
@@ -412,255 +212,281 @@ function atualizarCabecalho(secao) {
             "Consulta e análise dos registros"
         ],
 
-        importacao: [
-            "Importar Planilha",
-            "Importação e processamento dos dados"
+        motor: [
+            "Motor de Análise",
+            "Classificação automática das demandas"
         ],
 
         indicadores: [
             "Indicadores",
-            "Métricas gerais do processamento"
+            "Indicadores de desempenho"
         ],
 
         ranking: [
             "Ranking",
-            "Ranking dos principais ofensores"
-        ],
-
-        ofensores: [
-            "Ofensores",
-            "Análise dos ofensores"
+            "Principais ofensores identificados"
         ],
 
         alertas: [
             "Alertas",
-            "Demandas que exigem atenção"
+            "Demandas que precisam de atenção"
+        ],
+
+        importacao: [
+            "Importação",
+            "Importe sua planilha de demandas"
         ],
 
         exportacao: [
             "Exportação",
-            "Exportação dos resultados"
-        ],
-
-        historico: [
-            "Histórico",
-            "Importações realizadas"
+            "Exporte os resultados da análise"
         ],
 
         usuarios: [
             "Usuários",
-            "Controle de acesso"
+            "Usuários autorizados"
         ],
 
         configuracoes: [
             "Configurações",
-            "Configurações do sistema"
+            "Preferências do sistema"
         ]
 
     };
 
+    const info = titulos[sectionId] || titulos.dashboard;
 
-    const dados =
-        titulos[secao] ||
-        titulos.dashboard;
+    if ($("pageTitle")) {
+        $("pageTitle").textContent = info[0];
+    }
 
+    if ($("pageSubtitle")) {
+        $("pageSubtitle").textContent = info[1];
+    }
 
-    const titulo =
-        document.getElementById(
-            "pageTitle"
-        );
-
-    const subtitulo =
-        document.getElementById(
-            "pageSubtitle"
-        );
+}
 
 
-    if (titulo) {
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
 
-        titulo.textContent =
-            dados[0];
+function configurarSidebar() {
+
+    const toggle = $("sidebarToggle");
+
+    const sidebar = $("sidebar");
+
+    const mobileMenu = $("mobileMenu");
+
+    if (toggle && sidebar) {
+
+        toggle.addEventListener("click", () => {
+
+            sidebar.classList.toggle("collapsed");
+
+        });
 
     }
 
+    if (mobileMenu && sidebar) {
 
-    if (subtitulo) {
+        mobileMenu.addEventListener("click", () => {
 
-        subtitulo.textContent =
-            dados[1];
+            sidebar.classList.toggle("mobile-open");
+
+        });
 
     }
+
+    qsa(".menu-item").forEach(item => {
+
+        item.addEventListener("click", () => {
+
+            if (window.innerWidth <= 992) {
+
+                sidebar.classList.remove("mobile-open");
+
+            }
+
+        });
+
+    });
+
+}
+
+
+/* =========================================================
+   TEMA
+   ========================================================= */
+
+function configurarTema() {
+
+    const themeToggle = $("themeToggle");
+
+    const darkModeSetting = $("darkModeSetting");
+
+    if (themeToggle) {
+
+        themeToggle.addEventListener("click", alternarTema);
+
+    }
+
+    if (darkModeSetting) {
+
+        darkModeSetting.addEventListener("change", e => {
+
+            aplicarTema(e.target.checked);
+
+        });
+
+    }
+
+    atualizarIconeTema();
+
+}
+
+
+function alternarTema() {
+
+    aplicarTema(!estado.darkMode);
+
+}
+
+
+function aplicarTema(ativo) {
+
+    estado.darkMode = ativo;
+
+    document.body.classList.toggle(
+        "dark-mode",
+        ativo
+    );
+
+    localStorage.setItem(
+        "sigdH_dark_mode",
+        ativo ? "true" : "false"
+    );
+
+    const setting = $("darkModeSetting");
+
+    if (setting) {
+        setting.checked = ativo;
+    }
+
+    atualizarIconeTema();
+
+}
+
+
+function atualizarIconeTema() {
+
+    const button = $("themeToggle");
+
+    if (!button) return;
+
+    const icon = button.querySelector("i");
+
+    if (!icon) return;
+
+    icon.className = estado.darkMode
+        ? "fas fa-sun"
+        : "fas fa-moon";
+
+}
+
+
+/* =========================================================
+   CONFIGURAÇÕES
+   ========================================================= */
+
+function carregarConfiguracoes() {
+
+    const tema = localStorage.getItem("sigdH_dark_mode");
+
+    if (tema === "true") {
+
+        estado.darkMode = true;
+
+        document.body.classList.add("dark-mode");
+
+    }
+
 }
 
 
 /* =========================================================
    IMPORTAÇÃO
-========================================================= */
+   ========================================================= */
 
-function iniciarImportacao() {
+function configurarImportacao() {
 
-    const input =
-        document.getElementById(
-            "arquivoExcel"
-        );
+    const input = $("inputExcel");
 
-    const dropZone =
-        document.getElementById(
-            "dropZone"
-        );
+    const dropZone = $("arquivoExcel");
 
-    const inputHidden =
-        document.getElementById(
-            "inputExcelHidden"
-        );
+    if (!input || !dropZone) return;
 
 
-    if (input) {
+    input.addEventListener("change", event => {
 
-        input.addEventListener(
-            "change",
-            evento => {
+        const arquivo = event.target.files[0];
 
-                const arquivo =
-                    evento.target.files[0];
+        if (arquivo) {
 
-                if (arquivo) {
+            processarArquivo(arquivo);
 
-                    processarArquivo(
-                        arquivo
-                    );
+        }
 
-                }
-
-            }
-        );
-
-    }
+    });
 
 
-    if (inputHidden) {
+    dropZone.addEventListener("dragover", event => {
 
-        inputHidden.addEventListener(
-            "change",
-            evento => {
+        event.preventDefault();
 
-                const arquivo =
-                    evento.target.files[0];
+        dropZone.classList.add("dragover");
 
-                if (arquivo) {
-
-                    processarArquivo(
-                        arquivo
-                    );
-
-                }
-
-            }
-        );
-
-    }
+    });
 
 
-    if (dropZone) {
+    dropZone.addEventListener("dragleave", () => {
 
-        dropZone.addEventListener(
-            "dragover",
-            evento => {
+        dropZone.classList.remove("dragover");
 
-                evento.preventDefault();
-
-                dropZone.classList.add(
-                    "dragover"
-                );
-
-            }
-        );
+    });
 
 
-        dropZone.addEventListener(
-            "dragleave",
-            () => {
+    dropZone.addEventListener("drop", event => {
 
-                dropZone.classList.remove(
-                    "dragover"
-                );
+        event.preventDefault();
 
-            }
-        );
+        dropZone.classList.remove("dragover");
 
+        const arquivo = event.dataTransfer.files[0];
 
-        dropZone.addEventListener(
-            "drop",
-            evento => {
+        if (arquivo) {
 
-                evento.preventDefault();
+            processarArquivo(arquivo);
 
-                dropZone.classList.remove(
-                    "dragover"
-                );
+        }
 
+    });
 
-                const arquivo =
-                    evento.dataTransfer.files[0];
-
-                if (!arquivo) return;
-
-
-                const extensao =
-                    obterExtensao(
-                        arquivo.name
-                    );
-
-
-                if (
-                    ![
-                        "xlsx",
-                        "xls",
-                        "csv"
-                    ].includes(extensao)
-                ) {
-
-                    mostrarToast(
-                        "Formato de arquivo não suportado.",
-                        "error"
-                    );
-
-                    return;
-
-                }
-
-
-                processarArquivo(
-                    arquivo
-                );
-
-            }
-        );
-
-    }
 }
 
 
-function obterExtensao(nome) {
+async function processarArquivo(arquivo) {
 
-    return nome
+    const extensao = arquivo.name
         .split(".")
         .pop()
         .toLowerCase();
 
-}
-
-
-/* =========================================================
-   PROCESSAR ARQUIVO
-========================================================= */
-
-async function processarArquivo(arquivo) {
-
-    if (!window.XLSX) {
+    if (!["xlsx", "xls", "csv"].includes(extensao)) {
 
         mostrarToast(
-            "Biblioteca XLSX não foi carregada.",
+            "Formato não suportado. Use XLSX, XLS ou CSV.",
             "error"
         );
 
@@ -668,355 +494,254 @@ async function processarArquivo(arquivo) {
 
     }
 
+    estado.arquivoAtual = arquivo;
 
-    estado.arquivoAtual =
-        arquivo;
-
-
-    mostrarProgresso(
-        10,
-        "Lendo arquivo..."
-    );
-
+    mostrarProgresso(5, arquivo.name);
 
     try {
 
-        const buffer =
-            await arquivo.arrayBuffer();
+        const dados = await lerPlanilha(arquivo);
 
+        mostrarProgresso(45, "Processando registros...");
 
-        mostrarProgresso(
-            30,
-            "Abrindo planilha..."
+        const registros = transformarDados(dados);
+
+        mostrarProgresso(75, "Executando classificação...");
+
+        estado.dados = registros;
+
+        estado.dadosFiltrados = [...registros];
+
+        estado.paginaAtual = 1;
+
+        await aguardar(250);
+
+        mostrarProgresso(100, "Importação concluída");
+
+        salvarHistoricoImportacao(
+            arquivo.name,
+            registros.length
         );
-
-
-        const workbook =
-            XLSX.read(
-                buffer,
-                {
-                    type: "array",
-                    cellDates: true,
-                    raw: false
-                }
-            );
-
-
-        if (
-            !workbook.SheetNames ||
-            workbook.SheetNames.length === 0
-        ) {
-
-            throw new Error(
-                "A planilha não possui abas."
-            );
-
-        }
-
-
-        const nomeAba =
-            workbook.SheetNames[0];
-
-
-        const sheet =
-            workbook.Sheets[
-                nomeAba
-            ];
-
-
-        mostrarProgresso(
-            50,
-            "Lendo registros..."
-        );
-
-
-        const matriz =
-            XLSX.utils.sheet_to_json(
-                sheet,
-                {
-                    header: 1,
-                    defval: "",
-                    raw: false
-                }
-            );
-
-
-        if (
-            !matriz ||
-            matriz.length < 1
-        ) {
-
-            throw new Error(
-                "A planilha está vazia."
-            );
-
-        }
-
-
-        mostrarProgresso(
-            65,
-            "Analisando dados..."
-        );
-
-
-        const dados =
-            converterPlanilha(
-                matriz
-            );
-
-
-        if (!dados.length) {
-
-            throw new Error(
-                "Nenhum registro válido foi encontrado."
-            );
-
-        }
-
-
-        estado.dados =
-            dados;
-
-        estado.dadosFiltrados =
-            [...dados];
-
-
-        mostrarProgresso(
-            85,
-            "Atualizando dashboard..."
-        );
-
-
-        await new Promise(
-            resolve =>
-                setTimeout(
-                    resolve,
-                    300
-                )
-        );
-
 
         atualizarInterface();
 
-        registrarHistorico(
-            arquivo,
-            dados.length
+        mostrarResultadoImportacao(
+            arquivo.name,
+            registros.length
         );
-
-
-        mostrarProgresso(
-            100,
-            "Importação concluída!"
-        );
-
 
         mostrarToast(
-            `${dados.length} demandas importadas com sucesso.`,
+            `${registros.length} demanda(s) importada(s) com sucesso.`,
             "success"
         );
 
+        if ($("analiseAutomatica")?.checked) {
 
-        setTimeout(() => {
+            executarAnalise();
 
-            esconderProgresso();
-
-            mudarSecao(
-                "dashboard"
-            );
-
-        }, 700);
-
+        }
 
     } catch (erro) {
 
-        console.error(
-            "Erro na importação:",
-            erro
-        );
-
-
-        esconderProgresso();
-
+        console.error(erro);
 
         mostrarToast(
-            erro.message ||
-            "Não foi possível importar a planilha.",
+            "Não foi possível ler a planilha.",
             "error"
         );
 
+        ocultarProgresso();
+
     }
 
 }
 
 
-/* =========================================================
-   CONVERTER PLANILHA
-========================================================= */
+function lerPlanilha(arquivo) {
 
-function converterPlanilha(matriz) {
+    return new Promise((resolve, reject) => {
 
-    if (!matriz.length) return [];
+        const reader = new FileReader();
 
+        reader.onload = event => {
 
-    const linhas =
-        detectarCabecalho(
-            matriz
-        );
+            try {
 
-
-    const inicio =
-        linhas.inicio;
-
-
-    const cabecalho =
-        linhas.cabecalho;
-
-
-    const resultado = [];
-
-
-    for (
-        let i = inicio;
-        i < matriz.length;
-        i++
-    ) {
-
-        const linha =
-            matriz[i];
-
-
-        if (
-            !linha ||
-            linha.every(
-                valor =>
-                    String(valor ?? "").trim() === ""
-            )
-        ) {
-
-            continue;
-
-        }
-
-
-        const registro =
-            criarRegistro(
-                linha,
-                i + 1,
-                cabecalho
-            );
-
-
-        if (registro) {
-
-            resultado.push(
-                registro
-            );
-
-        }
-
-    }
-
-
-    return resultado;
-}
-
-
-/* =========================================================
-   DETECTAR CABEÇALHO
-========================================================= */
-
-function detectarCabecalho(matriz) {
-
-    const primeira =
-        matriz[0] || [];
-
-
-    const possuiTexto =
-        primeira.some(
-            valor =>
-                typeof valor === "string" &&
-                valor.trim() !== ""
-        );
-
-
-    if (possuiTexto) {
-
-        return {
-            inicio: 1,
-            cabecalho: primeira
-        };
-
-    }
-
-
-    return {
-        inicio: 0,
-        cabecalho: []
-    };
-}
-
-
-/* =========================================================
-   CRIAR REGISTRO
-========================================================= */
-
-function criarRegistro(
-    linha,
-    numero,
-    cabecalho
-) {
-
-    const get =
-        letra => {
-
-            const indice =
-                colunaParaIndice(
-                    letra
+                const dados = new Uint8Array(
+                    event.target.result
                 );
 
-            return normalizarTexto(
-                linha[indice]
+                const workbook = XLSX.read(
+                    dados,
+                    {
+                        type: "array",
+                        cellDates: true
+                    }
+                );
+
+                const primeiraAba =
+                    workbook.SheetNames[0];
+
+                if (!primeiraAba) {
+
+                    reject(
+                        new Error("Planilha sem abas.")
+                    );
+
+                    return;
+
+                }
+
+                const worksheet =
+                    workbook.Sheets[primeiraAba];
+
+                const json =
+                    XLSX.utils.sheet_to_json(
+                        worksheet,
+                        {
+                            header: 1,
+                            defval: "",
+                            raw: false
+                        }
+                    );
+
+                resolve(json);
+
+            } catch (erro) {
+
+                reject(erro);
+
+            }
+
+        };
+
+        reader.onerror = () => {
+
+            reject(
+                new Error("Erro ao ler arquivo.")
             );
 
         };
 
+        reader.readAsArrayBuffer(arquivo);
 
-    const dadosColunas = {
+    });
 
-        A: get("A"),
-        G: get("G"),
-        I: get("I"),
-        L: get("L"),
-        P: get("P"),
-        Q: get("Q"),
-        AD: get("AD"),
-        AE: get("AE"),
-        AM: get("AM"),
-        AV: get("AV"),
-        BB: get("BB")
-
-    };
+}
 
 
-    const textoAnalise =
-        Object.values(
-            dadosColunas
-        )
-        .join(" ")
-        .trim();
+/* =========================================================
+   TRANSFORMAÇÃO DOS DADOS
+   ========================================================= */
 
+function transformarDados(linhas) {
 
-    if (!textoAnalise) {
+    if (!linhas || linhas.length === 0) {
 
-        return null;
+        return [];
 
     }
+
+    const primeiraLinha = linhas[0] || [];
+
+    const possuiCabecalho = detectarCabecalho(primeiraLinha);
+
+    const inicio = possuiCabecalho ? 1 : 0;
+
+    const registros = [];
+
+    for (let i = inicio; i < linhas.length; i++) {
+
+        const linha = linhas[i];
+
+        if (!linha || linha.every(v => String(v).trim() === "")) {
+            continue;
+        }
+
+        const registro = criarRegistro(
+            linha,
+            i + 1
+        );
+
+        registros.push(registro);
+
+    }
+
+    return registros;
+
+}
+
+
+function detectarCabecalho(linha) {
+
+    const texto = linha
+        .map(v => normalizarTexto(v))
+        .join(" ");
+
+    const palavras = [
+        "PROTOCOLO",
+        "BENEFICIARIO",
+        "RECLAMACAO",
+        "PRESTADOR",
+        "OPERADORA",
+        "DATA"
+    ];
+
+    let encontrados = 0;
+
+    palavras.forEach(palavra => {
+
+        if (texto.includes(palavra)) {
+
+            encontrados++;
+
+        }
+
+    });
+
+    return encontrados >= 2;
+
+}
+
+
+/* =========================================================
+   CRIAÇÃO DOS REGISTROS
+   ========================================================= */
+
+function criarRegistro(linha, numeroLinha) {
+
+    const valorA = valorColuna(linha, "A");
+    const valorG = valorColuna(linha, "G");
+    const valorI = valorColuna(linha, "I");
+    const valorL = valorColuna(linha, "L");
+    const valorP = valorColuna(linha, "P");
+    const valorQ = valorColuna(linha, "Q");
+    const valorAD = valorColuna(linha, "AD");
+    const valorAE = valorColuna(linha, "AE");
+    const valorAM = valorColuna(linha, "AM");
+    const valorAV = valorColuna(linha, "AV");
+    const valorBB = valorColuna(linha, "BB");
+
+
+    const textoAnalise = [
+        valorA,
+        valorG,
+        valorI,
+        valorL,
+        valorP,
+        valorQ,
+        valorAD,
+        valorAE,
+        valorAM,
+        valorAV,
+        valorBB
+    ]
+        .map(v => normalizarTexto(v))
+        .join(" ");
 
 
     const classificacao =
-        classificarDemanda(
-            textoAnalise
-        );
+        classificarDemanda(textoAnalise);
 
 
     const ofensor =
@@ -1027,68 +752,44 @@ function criarRegistro(
 
 
     const prioridade =
-        calcularPrioridade(
-            textoAnalise
-        );
+        determinarPrioridade(textoAnalise);
 
 
     const confianca =
         calcularConfianca(
             textoAnalise,
-            classificacao,
-            ofensor
+            classificacao
         );
 
 
     return {
 
-        numero,
+        id: numeroLinha,
+
+        registro:
+            valorA || String(numeroLinha),
 
         protocolo:
-            dadosColunas.A ||
-            obterValorAlternativo(
-                linha,
-                [
-                    0,
-                    1,
-                    6
-                ]
-            ),
+            valorG || "-",
 
         beneficiario:
-            dadosColunas.G ||
-            obterValorAlternativo(
-                linha,
-                [
-                    6,
-                    7,
-                    8
-                ]
-            ),
+            valorI || "-",
 
         data:
-            dadosColunas.I ||
-            obterValorAlternativo(
-                linha,
-                [
-                    8,
-                    9
-                ]
-            ),
+            valorL || "-",
 
         reclamacao:
-            [
-                dadosColunas.L,
-                dadosColunas.P,
-                dadosColunas.Q,
-                dadosColunas.AD,
-                dadosColunas.AE,
-                dadosColunas.AM,
-                dadosColunas.AV,
-                dadosColunas.BB
-            ]
-            .filter(Boolean)
-            .join(" | "),
+            valorP || valorQ || "-",
+
+        prestador:
+            valorQ || valorAD || "-",
+
+        operadora:
+            valorAE || valorAM || "-",
+
+        valorAV,
+
+        valorBB,
 
         classificacao,
 
@@ -1098,193 +799,120 @@ function criarRegistro(
 
         confianca,
 
-        nivelConfianca:
-            obterNivelConfianca(
-                confianca
-            ),
+        status:
+            "PENDENTE",
 
-        colunas:
-            dadosColunas,
-
-        dadosOriginais:
-            linha,
-
-        cabecalho
+        textoAnalise
 
     };
+
 }
 
 
 /* =========================================================
-   COLUNA EXCEL → ÍNDICE
-========================================================= */
+   CONVERSÃO DE COLUNA
+   ========================================================= */
 
 function colunaParaIndice(coluna) {
 
     let resultado = 0;
 
-    const texto =
-        coluna.toUpperCase();
-
-
-    for (
-        let i = 0;
-        i < texto.length;
-        i++
-    ) {
+    for (let i = 0; i < coluna.length; i++) {
 
         resultado =
             resultado * 26 +
-            texto.charCodeAt(i) -
+            coluna.charCodeAt(i) -
             64;
 
     }
 
-
     return resultado - 1;
-}
-
-
-/* =========================================================
-   NORMALIZAÇÃO
-========================================================= */
-
-function normalizarTexto(valor) {
-
-    if (
-        valor === null ||
-        valor === undefined
-    ) {
-
-        return "";
-
-    }
-
-
-    if (
-        valor instanceof Date
-    ) {
-
-        return valor.toLocaleDateString(
-            "pt-BR"
-        );
-
-    }
-
-
-    return String(valor)
-        .normalize("NFD")
-        .replace(
-            /[\u0300-\u036f]/g,
-            ""
-        )
-        .trim();
 
 }
 
 
-/* =========================================================
-   TEXTO PARA ANÁLISE
-========================================================= */
+function valorColuna(linha, coluna) {
 
-function textoNormalizado(texto) {
+    const indice =
+        colunaParaIndice(coluna);
 
-    return String(texto || "")
-        .normalize("NFD")
-        .replace(
-            /[\u0300-\u036f]/g,
-            ""
-        )
-        .toUpperCase();
+    return linha[indice] !== undefined
+        ? String(linha[indice]).trim()
+        : "";
 
 }
 
 
 /* =========================================================
    CLASSIFICAÇÃO
-========================================================= */
+   ========================================================= */
 
 function classificarDemanda(texto) {
-
-    const t =
-        textoNormalizado(
-            texto
-        );
-
 
     const regras = {
 
         OPME: [
             "OPME",
             "PROTESE",
-            "PROTESES",
+            "PRÓTESE",
             "ORTese",
-            "ORTESE",
-            "ORTESIS",
+            "ÓRTESE",
             "IMPLANTE",
             "STENT",
-            "CATETER",
-            "PLACA",
-            "PARAFUSO",
-            "PROTESE",
             "MATERIAL ESPECIAL"
         ],
 
         MEDICAMENTO: [
             "MEDICAMENTO",
-            "MEDICAMENTOS",
+            "REMÉDIO",
             "REMEDIO",
-            "REMEDIOS",
+            "DROGA",
             "FARMACO",
-            "FARMACIA",
+            "FÁRMACO",
             "COMPRIMIDO",
-            "CAPSULA",
-            "AMPOLA",
+            "INJEÇÃO",
             "INJECAO",
             "DOSE",
-            "PRESCRICAO",
-            "QUIMIOTERAPIA"
+            "POSOLOGIA"
+        ],
+
+        MATERIAL: [
+            "MATERIAL",
+            "MATERIAL HOSPITALAR",
+            "LUVA",
+            "SERINGA",
+            "GAZE",
+            "CURATIVO",
+            "CATETER",
+            "EQUIPO",
+            "DESCARTÁVEL",
+            "DESCARTAVEL"
         ],
 
         LOGISTICA: [
+            "LOGÍSTICA",
+            "LOGISTICA",
             "ENTREGA",
             "ENTREGAR",
-            "TRANSPORTE",
             "ATRASO",
-            "ATRASADO",
-            "LOGISTICA",
-            "LOGISTICO",
-            "MOTORISTA",
-            "COLETA",
-            "MOVIMENTACAO",
-            "PRAZO",
-            "DISTRIBUICAO"
+            "TRANSPORTE",
+            "ALMOXARIFADO",
+            "ESTOQUE",
+            "DISPONIBILIDADE",
+            "SEPARAÇÃO",
+            "SEPARACAO"
         ],
 
         COMPRA: [
             "COMPRA",
             "COMPRAR",
+            "AQUISIÇÃO",
             "AQUISICAO",
-            "PEDIDO DE COMPRA",
+            "COTAÇÃO",
             "COTACAO",
-            "FORNECEDOR",
+            "ORÇAMENTO",
             "ORCAMENTO",
-            "PROCESSO DE COMPRA"
-        ],
-
-        MATERIAL: [
-            "MATERIAL",
-            "INSUMO",
-            "INSUMOS",
-            "LUVAS",
-            "LUVA",
-            "SERINGA",
-            "GAZE",
-            "ALGODAO",
-            "CURATIVO",
-            "MASCARA",
-            "EQUIPAMENTO",
-            "DISPOSITIVO"
+            "PEDIDO DE COMPRA"
         ]
 
     };
@@ -1301,262 +929,236 @@ function classificarDemanda(texto) {
     };
 
 
-    Object.keys(regras).forEach(
-        categoria => {
+    Object.entries(regras).forEach(
+        ([categoria, palavras]) => {
 
-            regras[categoria].forEach(
-                palavra => {
+            palavras.forEach(palavra => {
 
-                    const p =
-                        textoNormalizado(
-                            palavra
-                        );
+                const termo =
+                    normalizarTexto(palavra);
 
-                    if (
-                        t.includes(p)
-                    ) {
+                if (texto.includes(termo)) {
 
-                        pontuacao[
-                            categoria
-                        ]++;
-
-                    }
+                    pontuacao[categoria]++;
 
                 }
-            );
+
+            });
 
         }
     );
 
 
-    let melhor =
-        "MATERIAL";
+    const ordenado =
+        Object.entries(pontuacao)
+            .sort((a, b) => b[1] - a[1]);
 
 
-    let maior =
-        0;
+    if (ordenado[0][1] === 0) {
+
+        return "MATERIAL";
+
+    }
 
 
-    Object.entries(
-        pontuacao
-    ).forEach(
-        ([categoria, pontos]) => {
+    return ordenado[0][0];
 
-            if (
-                pontos > maior
-            ) {
-
-                maior =
-                    pontos;
-
-                melhor =
-                    categoria;
-
-            }
-
-        }
-    );
-
-
-    return melhor;
 }
 
 
 /* =========================================================
    OFENSOR
-========================================================= */
+   ========================================================= */
 
-function identificarOfensor(
-    texto,
-    classificacao
-) {
+function identificarOfensor(texto, classificacao) {
 
-    const t =
-        textoNormalizado(
-            texto
-        );
+    const regras = {
 
-
-    if (
-        [
+        FARMACIA: [
+            "FARMÁCIA",
             "FARMACIA",
+            "FARMACÊUTICO",
             "FARMACEUTICO",
-            "FARMACEUTICA",
-            "DISPENSACAO",
-            "ESTOQUE FARMACEUTICO"
-        ].some(
-            palavra =>
-                t.includes(
-                    palavra
-                )
-        )
-    ) {
+            "DISPENSAÇÃO",
+            "DISPENSACAO"
+        ],
 
-        return "FARMACIA";
+        LOGISTICA: [
+            "LOGÍSTICA",
+            "LOGISTICA",
+            "ENTREGA",
+            "TRANSPORTE",
+            "ALMOXARIFADO",
+            "ESTOQUE"
+        ],
+
+        OPME: [
+            "OPME",
+            "PRÓTESE",
+            "PROTESE",
+            "ÓRTESE",
+            "ORTESE",
+            "IMPLANTE"
+        ],
+
+        MEDICAMENTO: [
+            "MEDICAMENTO",
+            "REMÉDIO",
+            "REMEDIO",
+            "FÁRMACO",
+            "FARMACO"
+        ],
+
+        MATERIAL: [
+            "MATERIAL",
+            "LUVA",
+            "SERINGA",
+            "GAZE",
+            "CATETER",
+            "CURATIVO"
+        ]
+
+    };
+
+
+    const pontos = {};
+
+    CONFIG.ofensores.forEach(ofensor => {
+        pontos[ofensor] = 0;
+    });
+
+
+    Object.entries(regras).forEach(
+        ([ofensor, palavras]) => {
+
+            palavras.forEach(palavra => {
+
+                if (
+                    texto.includes(
+                        normalizarTexto(palavra)
+                    )
+                ) {
+
+                    pontos[ofensor]++;
+
+                }
+
+            });
+
+        }
+    );
+
+
+    const melhor =
+        Object.entries(pontos)
+            .sort((a, b) => b[1] - a[1])[0];
+
+
+    if (!melhor || melhor[1] === 0) {
+
+        return classificacao === "COMPRA"
+            ? "LOGISTICA"
+            : classificacao;
 
     }
 
 
-    if (
-        classificacao === "OPME"
-    ) {
+    return melhor[0];
 
-        return "OPME";
-
-    }
-
-
-    if (
-        classificacao === "MEDICAMENTO"
-    ) {
-
-        return "MEDICAMENTO";
-
-    }
-
-
-    if (
-        classificacao === "LOGISTICA"
-    ) {
-
-        return "LOGISTICA";
-
-    }
-
-
-    if (
-        classificacao === "COMPRA"
-    ) {
-
-        return "COMPRA";
-
-    }
-
-
-    return "MATERIAL";
 }
 
 
 /* =========================================================
    PRIORIDADE
-========================================================= */
+   ========================================================= */
 
-function calcularPrioridade(texto) {
+function determinarPrioridade(texto) {
 
-    const t =
-        textoNormalizado(
-            texto
-        );
-
-
-    const alta = [
+    const critica = [
         "URGENTE",
+        "URGÊNCIA",
         "URGENCIA",
         "RISCO",
         "RISCO DE VIDA",
-        "GRAVE",
-        "GRAVIDADE",
+        "EMERGÊNCIA",
         "EMERGENCIA",
-        "EMERGENCIAL",
-        "UTI",
-        "CENTRO CIRURGICO",
+        "ÓBITO",
+        "OBITO",
+        "CIRURGIA IMEDIATA",
+        "INTERNAÇÃO",
+        "INTERNACAO"
+    ];
+
+
+    const alta = [
+        "URGÊNCIA",
+        "URGENCIA",
         "CIRURGIA",
-        "IMEDIATO",
-        "IMEDIATA",
-        "NAO PODE ESPERAR",
-        "ATRASO CRITICO"
+        "INTERNAÇÃO",
+        "INTERNACAO",
+        "ATRASO",
+        "PREJUDICADO",
+        "IMPACTO"
     ];
 
 
     const media = [
-        "ATRASO",
-        "ATRASADO",
         "PENDENTE",
-        "PENDENCIA",
         "AGUARDANDO",
-        "PRAZO",
-        "DEMORA",
-        "RECLAMACAO",
-        "PROBLEMA"
+        "SOLICITAÇÃO",
+        "SOLICITACAO",
+        "PRAZO"
     ];
 
 
-    if (
-        alta.some(
-            palavra =>
-                t.includes(
-                    palavra
-                )
-        )
-    ) {
+    if (contemAlgum(texto, critica)) {
+        return "CRITICA";
+    }
 
+    if (contemAlgum(texto, alta)) {
         return "ALTA";
-
     }
 
-
-    if (
-        media.some(
-            palavra =>
-                t.includes(
-                    palavra
-                )
-        )
-    ) {
-
+    if (contemAlgum(texto, media)) {
         return "MEDIA";
-
     }
-
 
     return "BAIXA";
+
 }
 
 
 /* =========================================================
    CONFIANÇA
-========================================================= */
+   ========================================================= */
 
-function calcularConfianca(
-    texto,
-    classificacao,
-    ofensor
-) {
+function calcularConfianca(texto, classificacao) {
 
-    const t =
-        textoNormalizado(
-            texto
-        );
+    let pontos = 0;
+
+    const palavrasRelevantes = texto
+        .split(/\s+/)
+        .filter(Boolean);
 
 
-    let pontos = 35;
+    if (palavrasRelevantes.length >= 5) {
 
+        pontos += 20;
 
-    if (
-        t.length > 50
-    ) {
+    } else if (palavrasRelevantes.length >= 2) {
 
         pontos += 10;
 
     }
 
 
-    if (
-        t.length > 120
-    ) {
-
-        pontos += 10;
-
-    }
-
-
-    const palavrasPorCategoria = {
+    const palavrasCategoria = {
 
         MATERIAL: [
             "MATERIAL",
-            "INSUMO",
             "LUVA",
-            "SERINGA"
+            "SERINGA",
+            "GAZE"
         ],
 
         MEDICAMENTO: [
@@ -1568,158 +1170,919 @@ function calcularConfianca(
         LOGISTICA: [
             "ENTREGA",
             "TRANSPORTE",
-            "ATRASO",
-            "LOGISTICA"
+            "LOGISTICA",
+            "ESTOQUE"
         ],
 
         COMPRA: [
             "COMPRA",
             "AQUISICAO",
-            "FORNECEDOR"
+            "COTACAO"
         ],
 
         OPME: [
             "OPME",
             "PROTESE",
-            "IMPLANTE",
-            "CATETER"
+            "ORTESE",
+            "IMPLANTE"
         ]
 
     };
 
 
-    const palavras =
-        palavrasPorCategoria[
-            classificacao
-        ] || [];
+    const termos =
+        palavrasCategoria[classificacao] || [];
 
 
-    const encontrados =
-        palavras.filter(
-            palavra =>
-                t.includes(
-                    palavra
-                )
-        );
+    termos.forEach(termo => {
 
+        if (
+            texto.includes(
+                normalizarTexto(termo)
+            )
+        ) {
 
-    pontos +=
-        encontrados.length * 10;
+            pontos += 20;
 
+        }
 
-    if (
-        ofensor === classificacao ||
-        (
-            classificacao === "MEDICAMENTO" &&
-            ofensor === "FARMACIA"
-        )
-    ) {
-
-        pontos += 10;
-
-    }
+    });
 
 
     return Math.min(
-        99,
-        Math.max(
-            1,
-            pontos
-        )
+        98,
+        Math.max(35, 40 + pontos)
     );
+
 }
 
 
 /* =========================================================
-   NÍVEL DE CONFIANÇA
-========================================================= */
+   FILTROS
+   ========================================================= */
 
-function obterNivelConfianca(valor) {
+function configurarFiltros() {
+
+    const pesquisa = $("searchDemandas");
+
+    const classificacao =
+        $("filtroClassificacao");
+
+    const operadora =
+        $("filtroOperadora");
+
+    const prioridade =
+        $("filtroPrioridade");
+
+    const ofensor =
+        $("filtroOfensor");
+
+    const limpar =
+        $("limparFiltros");
+
+
+    if (pesquisa) {
+
+        pesquisa.addEventListener(
+            "input",
+            aplicarFiltros
+        );
+
+    }
+
+
+    [
+        classificacao,
+        operadora,
+        prioridade,
+        ofensor
+    ].forEach(elemento => {
+
+        if (elemento) {
+
+            elemento.addEventListener(
+                "change",
+                aplicarFiltros
+            );
+
+        }
+
+    });
+
+
+    if (limpar) {
+
+        limpar.addEventListener(
+            "click",
+            limparFiltros
+        );
+
+    }
+
+}
+
+
+function aplicarFiltros() {
+
+    estado.filtros = {
+
+        pesquisa:
+            $("searchDemandas")?.value
+                ?.trim()
+                .toLowerCase() || "",
+
+        classificacao:
+            $("filtroClassificacao")?.value || "",
+
+        operadora:
+            $("filtroOperadora")?.value || "",
+
+        prioridade:
+            $("filtroPrioridade")?.value || "",
+
+        ofensor:
+            $("filtroOfensor")?.value || ""
+
+    };
+
+
+    estado.dadosFiltrados =
+        estado.dados.filter(registro => {
+
+            const texto =
+                normalizarTexto(
+                    [
+                        registro.registro,
+                        registro.protocolo,
+                        registro.beneficiario,
+                        registro.reclamacao,
+                        registro.prestador,
+                        registro.operadora,
+                        registro.classificacao,
+                        registro.ofensor
+                    ].join(" ")
+                );
+
+
+            const pesquisaOK =
+                !estado.filtros.pesquisa ||
+                texto.includes(
+                    normalizarTexto(
+                        estado.filtros.pesquisa
+                    )
+                );
+
+
+            const classificacaoOK =
+                !estado.filtros.classificacao ||
+                registro.classificacao ===
+                estado.filtros.classificacao;
+
+
+            const operadoraOK =
+                !estado.filtros.operadora ||
+                registro.operadora ===
+                estado.filtros.operadora;
+
+
+            const prioridadeOK =
+                !estado.filtros.prioridade ||
+                registro.prioridade ===
+                estado.filtros.prioridade;
+
+
+            const ofensorOK =
+                !estado.filtros.ofensor ||
+                registro.ofensor ===
+                estado.filtros.ofensor;
+
+
+            return (
+                pesquisaOK &&
+                classificacaoOK &&
+                operadoraOK &&
+                prioridadeOK &&
+                ofensorOK
+            );
+
+        });
+
+
+    estado.paginaAtual = 1;
+
+    renderizarTabela();
+
+}
+
+
+function limparFiltros() {
+
+    if ($("searchDemandas")) {
+        $("searchDemandas").value = "";
+    }
+
+    [
+        "filtroClassificacao",
+        "filtroOperadora",
+        "filtroPrioridade",
+        "filtroOfensor"
+    ].forEach(id => {
+
+        if ($(id)) {
+            $(id).value = "";
+        }
+
+    });
+
+
+    aplicarFiltros();
+
+}
+
+
+/* =========================================================
+   TABELA
+   ========================================================= */
+
+function renderizarTabela() {
+
+    const tbody =
+        $("tabelaDemandasBody");
+
+    if (!tbody) return;
+
+
+    tbody.innerHTML = "";
+
+
+    if (
+        estado.dadosFiltrados.length === 0
+    ) {
+
+        tbody.innerHTML = `
+
+            <tr>
+
+                <td colspan="12">
+
+                    <div class="empty-state">
+
+                        <i class="fas fa-file-circle-question"></i>
+
+                        <h4>Nenhuma demanda encontrada</h4>
+
+                        <p>
+                            Importe uma planilha ou altere os filtros.
+                        </p>
+
+                    </div>
+
+                </td>
+
+            </tr>
+
+        `;
+
+        atualizarContadorTabela();
+
+        renderizarPaginacao();
+
+        return;
+
+    }
+
+
+    const inicio =
+        (estado.paginaAtual - 1) *
+        CONFIG.registrosPorPagina;
+
+
+    const fim =
+        inicio +
+        CONFIG.registrosPorPagina;
+
+
+    const registros =
+        estado.dadosFiltrados.slice(
+            inicio,
+            fim
+        );
+
+
+    registros.forEach(registro => {
+
+        const tr =
+            document.createElement("tr");
+
+
+        tr.innerHTML = `
+
+            <td>
+                ${escaparHTML(registro.registro)}
+            </td>
+
+            <td>
+                ${escaparHTML(registro.protocolo)}
+            </td>
+
+            <td>
+                ${escaparHTML(registro.beneficiario)}
+            </td>
+
+            <td>
+                ${escaparHTML(registro.data)}
+            </td>
+
+            <td title="${escaparHTML(registro.reclamacao)}">
+                ${escaparHTML(
+                    limitarTexto(
+                        registro.reclamacao,
+                        55
+                    )
+                )}
+            </td>
+
+            <td>
+                ${escaparHTML(registro.prestador)}
+            </td>
+
+            <td>
+                ${escaparHTML(registro.operadora)}
+            </td>
+
+            <td>
+                ${badgeClassificacao(
+                    registro.classificacao
+                )}
+            </td>
+
+            <td>
+                ${badgeOfensor(
+                    registro.ofensor
+                )}
+            </td>
+
+            <td>
+                ${badgePrioridade(
+                    registro.prioridade
+                )}
+            </td>
+
+            <td>
+                ${badgeConfianca(
+                    registro.confianca
+                )}
+            </td>
+
+            <td>
+
+                <button
+                    class="table-action"
+                    title="Ver detalhes"
+                    onclick="abrirDetalhes(${registro.id})"
+                >
+
+                    <i class="fas fa-eye"></i>
+
+                </button>
+
+            </td>
+
+        `;
+
+
+        tbody.appendChild(tr);
+
+    });
+
+
+    atualizarContadorTabela();
+
+    renderizarPaginacao();
+
+}
+
+
+function atualizarContadorTabela() {
+
+    const contador =
+        $("contadorTabela");
+
+    if (!contador) return;
+
+    contador.textContent =
+        `${estado.dadosFiltrados.length} registro(s)`;
+
+}
+
+
+function renderizarPaginacao() {
+
+    const container =
+        $("pagination");
+
+    if (!container) return;
+
+    container.innerHTML = "";
+
+
+    const totalPaginas =
+        Math.ceil(
+            estado.dadosFiltrados.length /
+            CONFIG.registrosPorPagina
+        );
+
+
+    if (totalPaginas <= 1) return;
+
+
+    for (
+        let pagina = 1;
+        pagina <= totalPaginas;
+        pagina++
+    ) {
+
+        const button =
+            document.createElement("button");
+
+        button.textContent = pagina;
+
+        if (
+            pagina ===
+            estado.paginaAtual
+        ) {
+
+            button.classList.add("active");
+
+        }
+
+
+        button.addEventListener(
+            "click",
+            () => {
+
+                estado.paginaAtual = pagina;
+
+                renderizarTabela();
+
+            }
+        );
+
+
+        container.appendChild(button);
+
+    }
+
+}
+
+
+/* =========================================================
+   BADGES
+   ========================================================= */
+
+function badgeClassificacao(valor) {
+
+    const classes = {
+
+        MATERIAL: "blue",
+        MEDICAMENTO: "purple",
+        LOGISTICA: "orange",
+        COMPRA: "yellow",
+        OPME: "green"
+
+    };
+
+    return `
+        <span class="badge ${classes[valor] || "blue"}">
+            ${formatarTexto(valor)}
+        </span>
+    `;
+
+}
+
+
+function badgeOfensor(valor) {
+
+    const classes = {
+
+        FARMACIA: "purple",
+        LOGISTICA: "orange",
+        OPME: "green",
+        MEDICAMENTO: "blue",
+        MATERIAL: "yellow"
+
+    };
+
+    return `
+        <span class="badge ${classes[valor] || "blue"}">
+            ${formatarTexto(valor)}
+        </span>
+    `;
+
+}
+
+
+function badgePrioridade(valor) {
+
+    const classes = {
+
+        CRITICA: "red",
+        ALTA: "orange",
+        MEDIA: "yellow",
+        BAIXA: "green"
+
+    };
+
+    return `
+        <span class="badge ${classes[valor] || "blue"}">
+            ${formatarTexto(valor)}
+        </span>
+    `;
+
+}
+
+
+function badgeConfianca(valor) {
+
+    let classe = "red";
 
     if (valor >= 80) {
-
-        return "ALTA";
-
+        classe = "green";
+    } else if (valor >= 60) {
+        classe = "yellow";
     }
 
+    return `
+        <span class="badge ${classe}">
+            ${valor}%
+        </span>
+    `;
 
-    if (valor >= 50) {
-
-        return "MEDIA";
-
-    }
-
-
-    return "BAIXA";
 }
 
 
 /* =========================================================
-   ATUALIZAR INTERFACE
-========================================================= */
+   MODAL
+   ========================================================= */
+
+function configurarModal() {
+
+    const modal =
+        $("modalDetalhes");
+
+    const fechar =
+        $("fecharModal");
+
+    const fecharFooter =
+        $("fecharModalFooter");
+
+
+    if (fechar) {
+
+        fechar.addEventListener(
+            "click",
+            fecharModal
+        );
+
+    }
+
+
+    if (fecharFooter) {
+
+        fecharFooter.addEventListener(
+            "click",
+            fecharModal
+        );
+
+    }
+
+
+    if (modal) {
+
+        modal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target === modal
+                ) {
+
+                    fecharModal();
+
+                }
+
+            }
+        );
+
+    }
+
+
+    document.addEventListener(
+        "keydown",
+        event => {
+
+            if (event.key === "Escape") {
+
+                fecharModal();
+
+            }
+
+        }
+    );
+
+}
+
+
+function abrirDetalhes(id) {
+
+    const registro =
+        estado.dados.find(
+            item => item.id === id
+        );
+
+    if (!registro) return;
+
+
+    if ($("modalProtocolo")) {
+
+        $("modalProtocolo").textContent =
+            `Protocolo: ${registro.protocolo}`;
+
+    }
+
+
+    const conteudo =
+        $("modalConteudo");
+
+    if (!conteudo) return;
+
+
+    conteudo.innerHTML = `
+
+        <div class="summary-item">
+            <span>Nº Registro</span>
+            <strong>${escaparHTML(registro.registro)}</strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Protocolo</span>
+            <strong>${escaparHTML(registro.protocolo)}</strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Beneficiário</span>
+            <strong>${escaparHTML(registro.beneficiario)}</strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Data</span>
+            <strong>${escaparHTML(registro.data)}</strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Prestador</span>
+            <strong>${escaparHTML(registro.prestador)}</strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Operadora</span>
+            <strong>${escaparHTML(registro.operadora)}</strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Classificação</span>
+            <strong>
+                ${badgeClassificacao(
+                    registro.classificacao
+                )}
+            </strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Ofensor</span>
+            <strong>
+                ${badgeOfensor(
+                    registro.ofensor
+                )}
+            </strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Prioridade</span>
+            <strong>
+                ${badgePrioridade(
+                    registro.prioridade
+                )}
+            </strong>
+        </div>
+
+        <div class="summary-item">
+            <span>Confiança</span>
+            <strong>
+                ${registro.confianca}%
+            </strong>
+        </div>
+
+        <div style="
+            margin-top:20px;
+            padding:15px;
+            border-radius:10px;
+            background:var(--bg-tertiary);
+        ">
+
+            <strong style="font-size:11px;">
+                Reclamação
+            </strong>
+
+            <p style="
+                margin-top:8px;
+                color:var(--text-secondary);
+                font-size:11px;
+                line-height:1.6;
+            ">
+                ${escaparHTML(
+                    registro.reclamacao
+                )}
+            </p>
+
+        </div>
+
+    `;
+
+
+    const modal =
+        $("modalDetalhes");
+
+    if (modal) {
+
+        modal.classList.remove("hidden");
+
+    }
+
+}
+
+
+function fecharModal() {
+
+    const modal =
+        $("modalDetalhes");
+
+    if (modal) {
+
+        modal.classList.add("hidden");
+
+    }
+
+}
+
+
+/* =========================================================
+   MOTOR DE ANÁLISE
+   ========================================================= */
+
+function configurarMotorAnalise() {
+
+    const button =
+        $("executarAnalise");
+
+    if (button) {
+
+        button.addEventListener(
+            "click",
+            executarAnalise
+        );
+
+    }
+
+}
+
+
+function executarAnalise() {
+
+    if (estado.dados.length === 0) {
+
+        mostrarToast(
+            "Importe uma planilha antes de executar a análise.",
+            "warning"
+        );
+
+        return;
+
+    }
+
+
+    estado.dados =
+        estado.dados.map(registro => {
+
+            const classificacao =
+                classificarDemanda(
+                    registro.textoAnalise
+                );
+
+
+            const ofensor =
+                identificarOfensor(
+                    registro.textoAnalise,
+                    classificacao
+                );
+
+
+            const prioridade =
+                determinarPrioridade(
+                    registro.textoAnalise
+                );
+
+
+            const confianca =
+                calcularConfianca(
+                    registro.textoAnalise,
+                    classificacao
+                );
+
+
+            return {
+
+                ...registro,
+
+                classificacao,
+                ofensor,
+                prioridade,
+                confianca
+
+            };
+
+        });
+
+
+    estado.dadosFiltrados =
+        [...estado.dados];
+
+
+    estado.ultimaAnalise =
+        new Date();
+
+
+    atualizarInterface();
+
+    mostrarToast(
+        "Análise concluída com sucesso.",
+        "success"
+    );
+
+}
+
+
+/* =========================================================
+   ATUALIZAÇÃO DA INTERFACE
+   ========================================================= */
 
 function atualizarInterface() {
 
-    atualizarCards();
+    atualizarEstatisticas();
+
+    atualizarOperadoras();
 
     aplicarFiltros();
 
     atualizarIndicadores();
 
-    atualizarOfensores();
-
     atualizarRanking();
-
-    atualizarResumo();
 
     atualizarAlertas();
 
-    atualizarGraficos();
+    atualizarResumo();
 
-    renderizarHistorico();
+    atualizarGraficos();
 
 }
 
 
 /* =========================================================
-   CARDS
-========================================================= */
+   ESTATÍSTICAS
+   ========================================================= */
 
-function atualizarCards() {
+function atualizarEstatisticas() {
 
     const total =
         estado.dados.length;
 
 
-    const processadas =
-        estado.dados.filter(
-            item =>
-                item.classificacao
-        ).length;
-
-
     const criticas =
         estado.dados.filter(
-            item =>
-                item.prioridade === "ALTA"
+            d => d.prioridade === "CRITICA"
         ).length;
 
 
-    const confianca =
-        total
+    const resolvidas =
+        estado.dados.filter(
+            d => d.status === "RESOLVIDA"
+        ).length;
+
+
+    const taxa =
+        total > 0
             ? Math.round(
-                estado.dados.reduce(
-                    (
-                        soma,
-                        item
-                    ) =>
-                        soma +
-                        Number(
-                            item.confianca ||
-                            0
-                        ),
-                    0
-                ) / total
+                (resolvidas / total) * 100
             )
             : 0;
 
@@ -1729,17 +2092,172 @@ function atualizarCards() {
         total
     );
 
-
     definirTexto(
-        "processadas",
-        processadas
-    );
-
-
-    definirTexto(
-        "demandasCriticas",
+        "totalCriticas",
         criticas
     );
+
+    definirTexto(
+        "totalResolvidas",
+        resolvidas
+    );
+
+    definirTexto(
+        "taxaResolucao",
+        `${taxa}%`
+    );
+
+    definirTexto(
+        "menuTotalDemandas",
+        total
+    );
+
+    definirTexto(
+        "menuAlertas",
+        criticas
+    );
+
+    definirTexto(
+        "notificationCount",
+        criticas
+    );
+
+}
+
+
+/* =========================================================
+   OPERADORAS
+   ========================================================= */
+
+function atualizarOperadoras() {
+
+    const select =
+        $("filtroOperadora");
+
+    if (!select) return;
+
+
+    const atual =
+        select.value;
+
+
+    const operadoras =
+        [...new Set(
+            estado.dados
+                .map(d => d.operadora)
+                .filter(Boolean)
+        )]
+        .sort();
+
+
+    select.innerHTML = `
+        <option value="">Todas</option>
+    `;
+
+
+    operadoras.forEach(operadora => {
+
+        const option =
+            document.createElement("option");
+
+        option.value = operadora;
+
+        option.textContent = operadora;
+
+        select.appendChild(option);
+
+    });
+
+
+    if (
+        operadoras.includes(atual)
+    ) {
+
+        select.value = atual;
+
+    }
+
+}
+
+
+/* =========================================================
+   INDICADORES
+   ========================================================= */
+
+function atualizarIndicadores() {
+
+    const total =
+        estado.dados.length;
+
+
+    const contagem = {};
+
+    estado.dados.forEach(d => {
+
+        contagem[d.classificacao] =
+            (contagem[d.classificacao] || 0) + 1;
+
+    });
+
+
+    const dominante =
+        Object.entries(contagem)
+            .sort((a, b) => b[1] - a[1])[0];
+
+
+    const criticas =
+        estado.dados.filter(
+            d => d.prioridade === "CRITICA"
+        ).length;
+
+
+    const resolvidas =
+        estado.dados.filter(
+            d => d.status === "RESOLVIDA"
+        ).length;
+
+
+    const taxa =
+        total > 0
+            ? Math.round(
+                (resolvidas / total) * 100
+            )
+            : 0;
+
+
+    definirTexto(
+        "indicadorTotal",
+        total
+    );
+
+    definirTexto(
+        "indicadorDominante",
+        dominante
+            ? formatarTexto(dominante[0])
+            : "-"
+    );
+
+    definirTexto(
+        "indicadorTaxa",
+        `${taxa}%`
+    );
+
+    definirTexto(
+        "indicadorCriticas",
+        criticas
+    );
+
+
+    const confianca =
+        total > 0
+            ? Math.round(
+                estado.dados.reduce(
+                    (sum, d) =>
+                        sum + d.confianca,
+                    0
+                ) / total
+            )
+            : 0;
 
 
     definirTexto(
@@ -1748,687 +2266,136 @@ function atualizarCards() {
     );
 
 
-    const ofensor =
-        obterDominante(
-            estado.dados,
-            "ofensor"
-        );
-
-
-    const classificacao =
-        obterDominante(
-            estado.dados,
-            "classificacao"
-        );
-
-
-    definirTexto(
-        "ofensorDominante",
-        formatarCategoria(
-            ofensor
-        )
-    );
-
-
-    definirTexto(
-        "classificacaoDominante",
-        formatarCategoria(
-            classificacao
-        )
-    );
-
-
-    definirTexto(
-        "altaConfianca",
-        estado.dados.filter(
-            item =>
-                item.nivelConfianca === "ALTA"
-        ).length
-    );
-
-
-    definirTexto(
-        "baixaConfianca",
-        estado.dados.filter(
-            item =>
-                item.nivelConfianca === "BAIXA"
-        ).length
-    );
-}
-
-
-/* =========================================================
-   FILTROS
-========================================================= */
-
-function iniciarFiltros() {
-
-    const ids = [
-        "searchDemandas",
-        "filtroClassificacao",
-        "filtroOfensor",
-        "filtroPrioridade",
-        "filtroConfianca"
-    ];
-
-
-    ids.forEach(id => {
-
-        const elemento =
-            document.getElementById(id);
-
-        if (!elemento) return;
-
-
-        elemento.addEventListener(
-            "input",
-            aplicarFiltros
-        );
-
-
-        elemento.addEventListener(
-            "change",
-            aplicarFiltros
-        );
-
-    });
-
-}
-
-
-/* =========================================================
-   APLICAR FILTROS
-========================================================= */
-
-function aplicarFiltros() {
-
-    const busca =
-        obterValor(
-            "searchDemandas"
-        )
-        .toLowerCase();
-
-
-    const classificacao =
-        obterValor(
-            "filtroClassificacao"
-        );
-
-
-    const ofensor =
-        obterValor(
-            "filtroOfensor"
-        );
-
-
-    const prioridade =
-        obterValor(
-            "filtroPrioridade"
-        );
-
-
-    const confianca =
-        obterValor(
-            "filtroConfianca"
-        );
-
-
-    estado.dadosFiltrados =
-        estado.dados.filter(
-            item => {
-
-                const texto =
-                    [
-                        item.protocolo,
-                        item.beneficiario,
-                        item.reclamacao,
-                        item.classificacao,
-                        item.ofensor
-                    ]
-                    .join(" ")
-                    .toLowerCase();
-
-
-                if (
-                    busca &&
-                    !texto.includes(
-                        busca
-                    )
-                ) {
-
-                    return false;
-
-                }
-
-
-                if (
-                    classificacao &&
-                    item.classificacao !==
-                    classificacao
-                ) {
-
-                    return false;
-
-                }
-
-
-                if (
-                    ofensor &&
-                    item.ofensor !==
-                    ofensor
-                ) {
-
-                    return false;
-
-                }
-
-
-                if (
-                    prioridade &&
-                    item.prioridade !==
-                    prioridade
-                ) {
-
-                    return false;
-
-                }
-
-
-                if (
-                    confianca &&
-                    item.nivelConfianca !==
-                    confianca
-                ) {
-
-                    return false;
-
-                }
-
-
-                return true;
-
-            }
-        );
-
-
-    renderizarTabela();
-
-    atualizarContadorTabela();
-}
-
-
-/* =========================================================
-   RENDERIZAR TABELA
-========================================================= */
-
-function renderizarTabela() {
-
-    const tbody =
-        document.getElementById(
-            "TabelaDemandasBody"
-        );
-
-
-    if (!tbody) return;
-
-
-    if (
-        !estado.dadosFiltrados.length
-    ) {
-
-        tbody.innerHTML = `
-
-            <tr>
-
-                <td
-                    colspan="10"
-                    class="empty-table"
-                >
-
-                    <i class="fa-solid fa-file-excel"></i>
-
-                    <strong>
-                        Nenhuma demanda encontrada
-                    </strong>
-
-                    <span>
-                        Importe uma planilha ou altere os filtros.
-                    </span>
-
-                </td>
-
-            </tr>
-
-        `;
-
-        return;
-
-    }
-
-
-    tbody.innerHTML =
-        estado.dadosFiltrados
-        .map(
-            (item, index) =>
-                gerarLinhaTabela(
-                    item,
-                    index
+    if ($("ultimaAnalise")) {
+
+        $("ultimaAnalise").textContent =
+            estado.ultimaAnalise
+                ? formatarDataHora(
+                    estado.ultimaAnalise
                 )
-        )
-        .join("");
-
-
-    tbody
-        .querySelectorAll(
-            "[data-detalhes]"
-        )
-        .forEach(botao => {
-
-            botao.addEventListener(
-                "click",
-                () => {
-
-                    const indice =
-                        Number(
-                            botao.dataset.detalhes
-                        );
-
-                    abrirDetalhes(
-                        estado.dadosFiltrados[
-                            indice
-                        ]
-                    );
-
-                }
-            );
-
-        });
-}
-
-
-/* =========================================================
-   LINHA DA TABELA
-========================================================= */
-
-function gerarLinhaTabela(
-    item,
-    index
-) {
-
-    return `
-
-        <tr>
-
-            <td>
-                ${index + 1}
-            </td>
-
-            <td>
-                <strong>
-                    ${escaparHTML(
-                        item.protocolo || "—"
-                    )}
-                </strong>
-            </td>
-
-            <td>
-                ${escaparHTML(
-                    item.beneficiario || "—"
-                )}
-            </td>
-
-            <td>
-                ${escaparHTML(
-                    item.data || "—"
-                )}
-            </td>
-
-            <td class="reclamacao-cell">
-                ${escaparHTML(
-                    item.reclamacao || "—"
-                )}
-            </td>
-
-            <td>
-                <span class="badge badge-classificacao">
-                    ${formatarCategoria(
-                        item.classificacao
-                    )}
-                </span>
-            </td>
-
-            <td>
-                <span class="badge badge-ofensor">
-                    ${formatarCategoria(
-                        item.ofensor
-                    )}
-                </span>
-            </td>
-
-            <td>
-                <span class="badge prioridade-${String(
-                    item.prioridade
-                ).toLowerCase()}">
-                    ${formatarCategoria(
-                        item.prioridade
-                    )}
-                </span>
-            </td>
-
-            <td>
-                <span class="confidence ${String(
-                    item.nivelConfianca
-                ).toLowerCase()}">
-                    ${item.confianca}%
-                </span>
-            </td>
-
-            <td>
-
-                <button
-                    class="table-action"
-                    data-detalhes="${index}"
-                    title="Ver detalhes"
-                    type="button"
-                >
-
-                    <i class="fa-solid fa-eye"></i>
-
-                </button>
-
-            </td>
-
-        </tr>
-
-    `;
-}
-
-
-/* =========================================================
-   CONTADOR
-========================================================= */
-
-function atualizarContadorTabela() {
-
-    const elemento =
-        document.getElementById(
-            "contadorTabela"
-        );
-
-
-    if (!elemento) return;
-
-
-    const quantidade =
-        estado.dadosFiltrados.length;
-
-
-    elemento.textContent =
-        `${quantidade} ${
-            quantidade === 1
-                ? "registro"
-                : "registros"
-        }`;
-}
-
-
-/* =========================================================
-   INDICADORES
-========================================================= */
-
-function atualizarIndicadores() {
-
-    const total =
-        estado.dados.length;
-
-
-    const dominante =
-        obterDominante(
-            estado.dados,
-            "classificacao"
-        );
-
-
-    const criticas =
-        estado.dados.filter(
-            item =>
-                item.prioridade === "ALTA"
-        ).length;
-
-
-    definirTexto(
-        "indicadorTotal",
-        total
-    );
-
-
-    definirTexto(
-        "indicadorDominante",
-        formatarCategoria(
-            dominante
-        )
-    );
-
-
-    definirTexto(
-        "indicadorTaxa",
-        total
-            ? "100%"
-            : "0%"
-    );
-
-
-    definirTexto(
-        "indicadorCriticas",
-        criticas
-    );
-
-
-    definirTexto(
-        "indicadorConfiancaAlta",
-        estado.dados.filter(
-            item =>
-                item.nivelConfianca === "ALTA"
-        ).length
-    );
-
-
-    definirTexto(
-        "indicadorConfiancaMedia",
-        estado.dados.filter(
-            item =>
-                item.nivelConfianca === "MEDIA"
-        ).length
-    );
-
-
-    definirTexto(
-        "indicadorConfiancaBaixa",
-        estado.dados.filter(
-            item =>
-                item.nivelConfianca === "BAIXA"
-        ).length
-    );
-
-
-    const processamento =
-        document.getElementById(
-            "indicadorProcessamento"
-        );
-
-
-    if (processamento) {
-
-        processamento.innerHTML =
-            total
-                ? `
-                    <strong>
-                        Processamento concluído
-                    </strong>
-
-                    <span>
-                        ${total} registros foram analisados.
-                    </span>
-                `
-                : `
-                    Nenhum processamento realizado.
-                `;
-
-    }
-}
-
-
-/* =========================================================
-   OFENSORES
-========================================================= */
-
-function atualizarOfensores() {
-
-    const contagens = {
-
-        LOGISTICA: 0,
-        FARMACIA: 0,
-        OPME: 0,
-        MEDICAMENTO: 0,
-        MATERIAL: 0,
-        COMPRA: 0
-
-    };
-
-
-    estado.dados.forEach(
-        item => {
-
-            if (
-                contagens[
-                    item.ofensor
-                ] !== undefined
-            ) {
-
-                contagens[
-                    item.ofensor
-                ]++;
-
-            }
-
-        }
-    );
-
-
-    definirTexto(
-        "ofensorLogistica",
-        contagens.LOGISTICA
-    );
-
-
-    definirTexto(
-        "ofensorFarmacia",
-        contagens.FARMACIA
-    );
-
-
-    definirTexto(
-        "ofensorOpme",
-        contagens.OPME
-    );
-
-
-    definirTexto(
-        "ofensorMedicamento",
-        contagens.MEDICAMENTO
-    );
-
-
-    definirTexto(
-        "ofensorMaterial",
-        contagens.MATERIAL
-    );
-
-
-    definirTexto(
-        "ofensorCompra",
-        contagens.COMPRA
-    );
-
-
-    const analise =
-        document.getElementById(
-            "analiseOfensores"
-        );
-
-
-    if (!analise) return;
-
-
-    if (!estado.dados.length) {
-
-        analise.innerHTML = `
-            <div class="empty-state">
-                Nenhuma análise disponível.
-            </div>
-        `;
-
-        return;
+                : "Nenhuma análise executada";
 
     }
 
-
-    const ranking =
-        Object.entries(
-            contagens
-        )
-        .sort(
-            (a, b) =>
-                b[1] - a[1]
-        );
-
-
-    const maior =
-        ranking[0];
-
-
-    analise.innerHTML = `
-
-        <div class="executive-item">
-
-            <strong>
-                Principal ofensor
-            </strong>
-
-            <span>
-                ${formatarCategoria(
-                    maior[0]
-                )}
-                — ${maior[1]} demandas
-            </span>
-
-        </div>
-
-    `;
 }
 
 
 /* =========================================================
    RANKING
-========================================================= */
+   ========================================================= */
 
 function atualizarRanking() {
 
-    const lista =
-        document.getElementById(
-            "rankingLista"
-        );
+    const contagem = {};
+
+    CONFIG.ofensores.forEach(ofensor => {
+
+        contagem[ofensor] = 0;
+
+    });
 
 
-    if (!lista) return;
+    estado.dados.forEach(registro => {
+
+        if (
+            contagem[registro.ofensor] !== undefined
+        ) {
+
+            contagem[registro.ofensor]++;
+
+        }
+
+    });
 
 
-    if (!estado.dados.length) {
+    const ranking =
+        Object.entries(contagem)
+            .sort((a, b) => b[1] - a[1]);
 
-        lista.innerHTML = `
+
+    renderizarRankingPrincipal(ranking);
+
+    renderizarTopOfensores(ranking);
+
+}
+
+
+function renderizarRankingPrincipal(ranking) {
+
+    const container =
+        $("rankingOfensores");
+
+    if (!container) return;
+
+
+    container.innerHTML = "";
+
+
+    ranking.forEach(
+        ([ofensor, quantidade], index) => {
+
+            container.innerHTML += `
+
+                <div class="ranking-card">
+
+                    <div class="ranking-card-header">
+
+                        <div class="ranking-position">
+                            #${index + 1}
+                        </div>
+
+                        <i class="fas fa-user-shield"></i>
+
+                    </div>
+
+                    <h3>
+                        ${formatarTexto(ofensor)}
+                    </h3>
+
+                    <div class="ranking-number">
+                        ${quantidade}
+                    </div>
+
+                    <span style="
+                        color:var(--text-secondary);
+                        font-size:10px;
+                    ">
+                        demanda(s)
+                    </span>
+
+                </div>
+
+            `;
+
+        }
+    );
+
+
+}
+
+
+function renderizarTopOfensores(ranking) {
+
+    const container =
+        $("topOfensores");
+
+    if (!container) return;
+
+
+    if (estado.dados.length === 0) {
+
+        container.innerHTML = `
+
             <div class="empty-state">
-                Nenhuma análise disponível.
+
+                <i class="fas fa-ranking-star"></i>
+
+                <p>
+                    Nenhum dado disponível.
+                </p>
+
             </div>
+
         `;
 
         return;
@@ -2436,54 +2403,15 @@ function atualizarRanking() {
     }
 
 
-    const contagem = {};
+    container.innerHTML = "";
 
 
-    estado.dados.forEach(
-        item => {
+    ranking
+        .slice(0, 5)
+        .forEach(
+            ([ofensor, quantidade], index) => {
 
-            contagem[
-                item.ofensor
-            ] =
-                (
-                    contagem[
-                        item.ofensor
-                    ] || 0
-                ) + 1;
-
-        }
-    );
-
-
-    const ranking =
-        Object.entries(
-            contagem
-        )
-        .sort(
-            (a, b) =>
-                b[1] - a[1]
-        );
-
-
-    const total =
-        estado.dados.length;
-
-
-    lista.innerHTML =
-        ranking
-        .map(
-            ([nome, quantidade], index) => {
-
-                const percentual =
-                    Math.round(
-                        (
-                            quantidade /
-                            total
-                        ) * 100
-                    );
-
-
-                return `
+                container.innerHTML += `
 
                     <div class="ranking-item">
 
@@ -2494,23 +2422,17 @@ function atualizarRanking() {
                         <div class="ranking-info">
 
                             <strong>
-                                ${formatarCategoria(
-                                    nome
-                                )}
+                                ${formatarTexto(ofensor)}
                             </strong>
 
                             <span>
-                                ${quantidade} demandas
+                                Ofensor identificado
                             </span>
 
                         </div>
 
                         <div class="ranking-value">
-
-                            <strong>
-                                ${percentual}%
-                            </strong>
-
+                            ${quantidade}
                         </div>
 
                     </div>
@@ -2518,34 +2440,54 @@ function atualizarRanking() {
                 `;
 
             }
-        )
-        .join("");
+        );
+
 }
 
 
 /* =========================================================
-   RESUMO EXECUTIVO
-========================================================= */
+   ALERTAS
+   ========================================================= */
 
-function atualizarResumo() {
+function atualizarAlertas() {
 
-    const elemento =
-        document.getElementById(
-            "resumoExecutivo"
+    const container =
+        $("listaAlertas");
+
+    if (!container) return;
+
+
+    const criticas =
+        estado.dados.filter(
+            d => d.prioridade === "CRITICA"
         );
 
 
-    if (!elemento) return;
+    const altas =
+        estado.dados.filter(
+            d => d.prioridade === "ALTA"
+        );
 
 
-    if (!estado.dados.length) {
+    if (
+        criticas.length === 0 &&
+        altas.length === 0
+    ) {
 
-        elemento.innerHTML = `
+        container.innerHTML = `
+
             <div class="empty-state">
-                <i class="fa-solid fa-chart-column"></i>
-                <strong>Nenhuma planilha analisada</strong>
-                <span>Importe uma planilha para gerar o resumo.</span>
+
+                <i class="fas fa-shield-halved"></i>
+
+                <h4>Nenhum alerta</h4>
+
+                <p>
+                    Não existem demandas críticas ou altas.
+                </p>
+
             </div>
+
         `;
 
         return;
@@ -2553,281 +2495,279 @@ function atualizarResumo() {
     }
 
 
-    const total =
-        estado.dados.length;
+    container.innerHTML = "";
+
+
+    criticas.slice(0, 10)
+        .forEach(registro => {
+
+            container.innerHTML += criarAlerta(
+                registro,
+                "danger",
+                "fa-circle-exclamation"
+            );
+
+        });
+
+
+    altas.slice(0, 10)
+        .forEach(registro => {
+
+            container.innerHTML += criarAlerta(
+                registro,
+                "warning",
+                "fa-triangle-exclamation"
+            );
+
+        });
+
+}
+
+
+function criarAlerta(
+    registro,
+    tipo,
+    icone
+) {
+
+    return `
+
+        <div class="alert-item ${tipo}">
+
+            <div class="alert-icon">
+
+                <i class="fas ${icone}"></i>
+
+            </div>
+
+            <div class="alert-content">
+
+                <strong>
+                    Demanda ${escaparHTML(
+                        registro.protocolo
+                    )}
+                </strong>
+
+                <span>
+                    Prioridade ${formatarTexto(
+                        registro.prioridade
+                    )}
+                    ·
+                    Ofensor ${formatarTexto(
+                        registro.ofensor
+                    )}
+                </span>
+
+            </div>
+
+            <button
+                class="table-action"
+                onclick="abrirDetalhes(${registro.id})"
+            >
+
+                <i class="fas fa-eye"></i>
+
+            </button>
+
+        </div>
+
+    `;
+
+}
+
+
+/* =========================================================
+   RESUMO EXECUTIVO
+   ========================================================= */
+
+function atualizarResumo() {
+
+    const container =
+        $("resumoExecutivo");
+
+    if (!container) return;
+
+
+    if (estado.dados.length === 0) {
+
+        container.innerHTML = `
+
+            <div class="empty-state">
+
+                <i class="fas fa-chart-simple"></i>
+
+                <h4>Nenhuma análise disponível</h4>
+
+                <p>
+                    Importe uma planilha para gerar
+                    o resumo executivo.
+                </p>
+
+            </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    const classificacoes = {};
+
+    estado.dados.forEach(d => {
+
+        classificacoes[d.classificacao] =
+            (classificacoes[d.classificacao] || 0) + 1;
+
+    });
+
+
+    const dominante =
+        Object.entries(classificacoes)
+            .sort((a,b) => b[1] - a[1])[0];
 
 
     const criticas =
         estado.dados.filter(
-            item =>
-                item.prioridade === "ALTA"
+            d => d.prioridade === "CRITICA"
         ).length;
 
 
     const confianca =
         Math.round(
             estado.dados.reduce(
-                (soma, item) =>
-                    soma +
-                    item.confianca,
+                (sum, d) =>
+                    sum + d.confianca,
                 0
-            ) / total
+            ) / estado.dados.length
         );
 
 
-    const dominante =
-        obterDominante(
-            estado.dados,
-            "ofensor"
-        );
+    container.innerHTML = `
+
+        <div class="summary-item">
+
+            <span>Total de demandas</span>
+
+            <strong>
+                ${estado.dados.length}
+            </strong>
+
+        </div>
 
 
-    elemento.innerHTML = `
+        <div class="summary-item">
 
-        <div class="executive-summary">
+            <span>Classificação predominante</span>
 
-            <div class="executive-item">
-                <strong>Total</strong>
-                <span>${total} demandas analisadas.</span>
-            </div>
+            <strong>
+                ${formatarTexto(
+                    dominante?.[0] || "-"
+                )}
+            </strong>
 
-            <div class="executive-item">
-                <strong>Ofensor dominante</strong>
-                <span>${formatarCategoria(
-                    dominante
-                )}</span>
-            </div>
+        </div>
 
-            <div class="executive-item">
-                <strong>Demandas críticas</strong>
-                <span>${criticas}</span>
-            </div>
 
-            <div class="executive-item">
-                <strong>Confiança média</strong>
-                <span>${confianca}%</span>
-            </div>
+        <div class="summary-item">
+
+            <span>Demandas críticas</span>
+
+            <strong class="text-danger">
+                ${criticas}
+            </strong>
+
+        </div>
+
+
+        <div class="summary-item">
+
+            <span>Confiança média</span>
+
+            <strong>
+                ${confianca}%
+            </strong>
 
         </div>
 
     `;
-}
 
-
-/* =========================================================
-   ALERTAS
-========================================================= */
-
-function atualizarAlertas() {
-
-    const elemento =
-        document.getElementById(
-            "alertasSistema"
-        );
-
-
-    const lista =
-        document.getElementById(
-            "listaAlertas"
-        );
-
-
-    const criticas =
-        estado.dados.filter(
-            item =>
-                item.prioridade === "ALTA"
-        );
-
-
-    const baixaConfianca =
-        estado.dados.filter(
-            item =>
-                item.nivelConfianca === "BAIXA"
-        );
-
-
-    let html = "";
-
-
-    if (criticas.length) {
-
-        html += `
-
-            <div class="alert-item">
-
-                <i class="fa-solid fa-triangle-exclamation"></i>
-
-                <div>
-
-                    <strong>
-                        ${criticas.length} demandas críticas
-                    </strong>
-
-                    <span>
-                        Demandas classificadas com prioridade alta.
-                    </span>
-
-                </div>
-
-            </div>
-
-        `;
-
-    }
-
-
-    if (baixaConfianca.length) {
-
-        html += `
-
-            <div class="alert-item">
-
-                <i class="fa-solid fa-circle-question"></i>
-
-                <div>
-
-                    <strong>
-                        ${baixaConfianca.length} registros com baixa confiança
-                    </strong>
-
-                    <span>
-                        Recomenda-se revisão manual.
-                    </span>
-
-                </div>
-
-            </div>
-
-        `;
-
-    }
-
-
-    if (!html) {
-
-        html = `
-            <div class="empty-state">
-                <i class="fa-solid fa-shield-halved"></i>
-                <strong>Nenhum alerta</strong>
-                <span>O sistema não encontrou situações críticas.</span>
-            </div>
-        `;
-
-    }
-
-
-    if (elemento) {
-
-        elemento.innerHTML =
-            html;
-
-    }
-
-
-    if (lista) {
-
-        lista.innerHTML =
-            html;
-
-    }
 }
 
 
 /* =========================================================
    GRÁFICOS
-========================================================= */
+   ========================================================= */
 
 function atualizarGraficos() {
 
-    if (!window.Chart) return;
+    if (
+        typeof Chart === "undefined"
+    ) {
+
+        return;
+
+    }
 
 
     criarGraficoClassificacao();
 
     criarGraficoPrioridade();
 
-    criarGraficoDistribuicao();
+    criarGraficoOperadora();
 
     criarGraficoEvolucao();
 
-    criarGraficoOfensores();
-
 }
 
-
-/* =========================================================
-   DESTROY CHART
-========================================================= */
 
 function destruirGrafico(nome) {
 
-    if (
-        estado.charts[nome]
-    ) {
+    if (estado.graficos[nome]) {
 
-        estado.charts[nome].destroy();
+        estado.graficos[nome].destroy();
 
-        estado.charts[nome] =
-            null;
+        estado.graficos[nome] = null;
 
     }
-}
-
-
-/* =========================================================
-   CORES
-========================================================= */
-
-function coresGrafico() {
-
-    return [
-        "#2563eb",
-        "#10b981",
-        "#f59e0b",
-        "#ef4444",
-        "#8b5cf6",
-        "#06b6d4"
-    ];
 
 }
 
-
-/* =========================================================
-   CLASSIFICAÇÃO
-========================================================= */
 
 function criarGraficoClassificacao() {
 
     const canvas =
-        document.getElementById(
-            "graficoClassificacao"
-        );
-
+        $("graficoClassificacao");
 
     if (!canvas) return;
 
 
-    destruirGrafico(
-        "classificacao"
-    );
+    destruirGrafico("classificacao");
 
 
-    const categorias =
-        CONFIG.classificacoes;
+    const contagem = {
+
+        MATERIAL: 0,
+        MEDICAMENTO: 0,
+        LOGISTICA: 0,
+        COMPRA: 0,
+        OPME: 0
+
+    };
 
 
-    const valores =
-        categorias.map(
-            categoria =>
-                estado.dados.filter(
-                    item =>
-                        item.classificacao ===
-                        categoria
-                ).length
-        );
+    estado.dados.forEach(d => {
+
+        if (contagem[d.classificacao] !== undefined) {
+
+            contagem[d.classificacao]++;
+
+        }
+
+    });
 
 
-    estado.charts.classificacao =
+    estado.graficos.classificacao =
         new Chart(
             canvas,
             {
@@ -2835,19 +2775,27 @@ function criarGraficoClassificacao() {
 
                 data: {
 
-                    labels:
-                        categorias.map(
-                            formatarCategoria
-                        ),
+                    labels: [
+                        "Material",
+                        "Medicamento",
+                        "Logística",
+                        "Compra",
+                        "OPME"
+                    ],
 
-                    datasets: [
-                        {
-                            data: valores,
-                            backgroundColor:
-                                coresGrafico(),
-                            borderWidth: 0
-                        }
-                    ]
+                    datasets: [{
+
+                        data: [
+                            contagem.MATERIAL,
+                            contagem.MEDICAMENTO,
+                            contagem.LOGISTICA,
+                            contagem.COMPRA,
+                            contagem.OPME
+                        ],
+
+                        borderWidth: 0
+
+                    }]
 
                 },
 
@@ -2869,154 +2817,70 @@ function criarGraficoClassificacao() {
 
             }
         );
+
 }
 
-
-/* =========================================================
-   PRIORIDADE
-========================================================= */
 
 function criarGraficoPrioridade() {
 
     const canvas =
-        document.getElementById(
-            "graficoPrioridade"
-        );
-
+        $("graficoPrioridade");
 
     if (!canvas) return;
 
 
-    destruirGrafico(
-        "prioridade"
-    );
+    destruirGrafico("prioridade");
 
 
-    const categorias = [
-        "ALTA",
-        "MEDIA",
-        "BAIXA"
-    ];
+    const contagem = {
+
+        CRITICA: 0,
+        ALTA: 0,
+        MEDIA: 0,
+        BAIXA: 0
+
+    };
 
 
-    const valores =
-        categorias.map(
-            categoria =>
-                estado.dados.filter(
-                    item =>
-                        item.prioridade ===
-                        categoria
-                ).length
-        );
+    estado.dados.forEach(d => {
+
+        if (contagem[d.prioridade] !== undefined) {
+
+            contagem[d.prioridade]++;
+
+        }
+
+    });
 
 
-    estado.charts.prioridade =
+    estado.graficos.prioridade =
         new Chart(
             canvas,
             {
-                type: "doughnut",
 
-                data: {
-
-                    labels:
-                        categorias.map(
-                            formatarCategoria
-                        ),
-
-                    datasets: [
-                        {
-                            data: valores,
-                            backgroundColor:
-                                [
-                                    "#ef4444",
-                                    "#f59e0b",
-                                    "#10b981"
-                                ],
-                            borderWidth: 0
-                        }
-                    ]
-
-                },
-
-                options: {
-
-                    responsive: true,
-
-                    maintainAspectRatio: false,
-
-                    plugins: {
-
-                        legend: {
-                            position: "bottom"
-                        }
-
-                    }
-
-                }
-
-            }
-        );
-}
-
-
-/* =========================================================
-   DISTRIBUIÇÃO
-========================================================= */
-
-function criarGraficoDistribuicao() {
-
-    const canvas =
-        document.getElementById(
-            "graficoDistribuicao"
-        );
-
-
-    if (!canvas) return;
-
-
-    destruirGrafico(
-        "distribuicao"
-    );
-
-
-    const categorias =
-        CONFIG.classificacoes;
-
-
-    const valores =
-        categorias.map(
-            categoria =>
-                estado.dados.filter(
-                    item =>
-                        item.classificacao ===
-                        categoria
-                ).length
-        );
-
-
-    estado.charts.distribuicao =
-        new Chart(
-            canvas,
-            {
                 type: "bar",
 
                 data: {
 
-                    labels:
-                        categorias.map(
-                            formatarCategoria
-                        ),
+                    labels: [
+                        "Crítica",
+                        "Alta",
+                        "Média",
+                        "Baixa"
+                    ],
 
-                    datasets: [
-                        {
-                            label:
-                                "Demandas",
-                            data:
-                                valores,
-                            backgroundColor:
-                                coresGrafico()
-                        }
-                    ]
+                    datasets: [{
+
+                        label: "Demandas",
+
+                        data: [
+                            contagem.CRITICA,
+                            contagem.ALTA,
+                            contagem.MEDIA,
+                            contagem.BAIXA
+                        ]
+
+                    }]
 
                 },
 
@@ -3026,97 +2890,16 @@ function criarGraficoDistribuicao() {
 
                     maintainAspectRatio: false,
 
-                    scales: {
-
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
-                        }
-
-                    },
-
                     plugins: {
-
                         legend: {
                             display: false
                         }
-
-                    }
-
-                }
-
-            }
-        );
-}
-
-
-/* =========================================================
-   EVOLUÇÃO
-========================================================= */
-
-function criarGraficoEvolucao() {
-
-    const canvas =
-        document.getElementById(
-            "graficoEvolucao"
-        );
-
-
-    if (!canvas) return;
-
-
-    destruirGrafico(
-        "evolucao"
-    );
-
-
-    const dados =
-        agruparPorData(
-            estado.dados
-        );
-
-
-    estado.charts.evolucao =
-        new Chart(
-            canvas,
-            {
-                type: "line",
-
-                data: {
-
-                    labels:
-                        dados.labels,
-
-                    datasets: [
-                        {
-                            label:
-                                "Demandas",
-                            data:
-                                dados.valores,
-                            tension:
-                                0.3,
-                            fill:
-                                false
-                        }
-                    ]
-
-                },
-
-                options: {
-
-                    responsive: true,
-
-                    maintainAspectRatio: false,
+                    },
 
                     scales: {
 
                         y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
+                            beginAtZero: true
                         }
 
                     }
@@ -3125,97 +2908,75 @@ function criarGraficoEvolucao() {
 
             }
         );
+
 }
 
 
-/* =========================================================
-   OFENSORES
-========================================================= */
-
-function criarGraficoOfensores() {
+function criarGraficoOperadora() {
 
     const canvas =
-        document.getElementById(
-            "graficoOfensores"
-        );
-
+        $("graficoOperadora");
 
     if (!canvas) return;
 
 
-    destruirGrafico(
-        "ofensores"
-    );
+    destruirGrafico("operadora");
 
 
     const contagem = {};
 
 
-    estado.dados.forEach(
-        item => {
+    estado.dados.forEach(d => {
 
-            contagem[
-                item.ofensor
-            ] =
-                (
-                    contagem[
-                        item.ofensor
-                    ] || 0
-                ) + 1;
+        const operadora =
+            d.operadora || "Não informado";
 
-        }
-    );
+        contagem[operadora] =
+            (contagem[operadora] || 0) + 1;
+
+    });
 
 
     const ranking =
-        Object.entries(
-            contagem
-        )
-        .sort(
-            (a, b) =>
-                b[1] - a[1]
-        );
+        Object.entries(contagem)
+            .sort((a,b) => b[1] - a[1])
+            .slice(0, 10);
 
 
-    estado.charts.ofensores =
+    estado.graficos.operadora =
         new Chart(
             canvas,
             {
+
                 type: "bar",
 
                 data: {
 
                     labels:
                         ranking.map(
-                            item =>
-                                formatarCategoria(
-                                    item[0]
-                                )
+                            item => item[0]
                         ),
 
-                    datasets: [
-                        {
-                            label:
-                                "Demandas",
-                            data:
-                                ranking.map(
-                                    item =>
-                                        item[1]
-                                ),
-                            backgroundColor:
-                                coresGrafico()
-                        }
-                    ]
+                    datasets: [{
+
+                        label: "Demandas",
+
+                        data:
+                            ranking.map(
+                                item => item[1]
+                            )
+
+                    }]
 
                 },
 
                 options: {
 
-                    indexAxis: "y",
-
                     responsive: true,
 
                     maintainAspectRatio: false,
+
+                    indexAxis: "y",
 
                     plugins: {
 
@@ -3228,10 +2989,7 @@ function criarGraficoOfensores() {
                     scales: {
 
                         x: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
+                            beginAtZero: true
                         }
 
                     }
@@ -3240,729 +2998,149 @@ function criarGraficoOfensores() {
 
             }
         );
+
 }
 
 
-/* =========================================================
-   AGRUPAR POR DATA
-========================================================= */
+function criarGraficoEvolucao() {
 
-function agruparPorData(dados) {
+    const canvas =
+        $("graficoEvolucao");
 
-    const mapa = {};
-
-
-    dados.forEach(
-        item => {
-
-            const data =
-                item.data ||
-                "Sem data";
+    if (!canvas) return;
 
 
-            mapa[data] =
-                (
-                    mapa[data] ||
-                    0
-                ) + 1;
-
-        }
-    );
+    destruirGrafico("evolucao");
 
 
-    const labels =
-        Object.keys(
-            mapa
-        );
+    const contagem = {};
 
 
-    return {
+    estado.dados.forEach(d => {
 
-        labels,
+        const data =
+            normalizarData(d.data);
 
-        valores:
-            labels.map(
-                data =>
-                    mapa[data]
+        if (!data) return;
+
+        contagem[data] =
+            (contagem[data] || 0) + 1;
+
+    });
+
+
+    const ordenado =
+        Object.entries(contagem)
+            .sort((a,b) =>
+                a[0].localeCompare(b[0])
             )
-
-    };
-}
+            .slice(-12);
 
 
-/* =========================================================
-   DETALHES
-========================================================= */
+    estado.graficos.evolucao =
+        new Chart(
+            canvas,
+            {
 
-function abrirDetalhes(item) {
+                type: "line",
 
-    const modal =
-        document.getElementById(
-            "modalDetalhes"
-        );
+                data: {
 
+                    labels:
+                        ordenado.map(
+                            item => item[0]
+                        ),
 
-    if (!modal) return;
+                    datasets: [{
 
+                        label: "Demandas",
 
-    const titulo =
-        modal.querySelector(
-            "[data-detalhe-titulo]"
-        );
+                        data:
+                            ordenado.map(
+                                item => item[1]
+                            ),
 
+                        tension: 0.3,
 
-    const conteudo =
-        modal.querySelector(
-            "[data-detalhe-conteudo]"
-        );
+                        fill: false
 
+                    }]
 
-    if (titulo) {
+                },
 
-        titulo.textContent =
-            item.protocolo ||
-            "Detalhes da demanda";
+                options: {
 
-    }
+                    responsive: true,
 
+                    maintainAspectRatio: false,
 
-    if (conteudo) {
+                    scales: {
 
-        conteudo.innerHTML = `
+                        y: {
+                            beginAtZero: true
+                        }
 
-            <div class="detail-grid">
+                    }
 
-                <div class="detail-item">
-                    <span>Protocolo</span>
-                    <strong>
-                        ${escaparHTML(
-                            item.protocolo || "—"
-                        )}
-                    </strong>
-                </div>
-
-                <div class="detail-item">
-                    <span>Beneficiário</span>
-                    <strong>
-                        ${escaparHTML(
-                            item.beneficiario || "—"
-                        )}
-                    </strong>
-                </div>
-
-                <div class="detail-item">
-                    <span>Data</span>
-                    <strong>
-                        ${escaparHTML(
-                            item.data || "—"
-                        )}
-                    </strong>
-                </div>
-
-                <div class="detail-item">
-                    <span>Classificação</span>
-                    <strong>
-                        ${formatarCategoria(
-                            item.classificacao
-                        )}
-                    </strong>
-                </div>
-
-                <div class="detail-item">
-                    <span>Ofensor</span>
-                    <strong>
-                        ${formatarCategoria(
-                            item.ofensor
-                        )}
-                    </strong>
-                </div>
-
-                <div class="detail-item">
-                    <span>Prioridade</span>
-                    <strong>
-                        ${formatarCategoria(
-                            item.prioridade
-                        )}
-                    </strong>
-                </div>
-
-                <div class="detail-item">
-                    <span>Confiança</span>
-                    <strong>
-                        ${item.confianca}%
-                    </strong>
-                </div>
-
-            </div>
-
-            <div class="detail-description">
-
-                <span>
-                    Reclamação / dados analisados
-                </span>
-
-                <p>
-                    ${escaparHTML(
-                        item.reclamacao || "—"
-                    )}
-                </p>
-
-            </div>
-
-        `;
-
-    }
-
-
-    modal.classList.add(
-        "active"
-    );
-
-}
-
-
-/* =========================================================
-   MODAIS
-========================================================= */
-
-function iniciarModais() {
-
-    document
-        .querySelectorAll(
-            ".modal-close, .modal-overlay"
-        )
-        .forEach(
-            elemento => {
-
-                elemento.addEventListener(
-                    "click",
-                    fecharModais
-                );
+                }
 
             }
         );
 
-
-    document.addEventListener(
-        "keydown",
-        evento => {
-
-            if (
-                evento.key === "Escape"
-            ) {
-
-                fecharModais();
-
-            }
-
-        }
-    );
-}
-
-
-function fecharModais() {
-
-    document
-        .querySelectorAll(
-            ".modal.active"
-        )
-        .forEach(
-            modal => {
-
-                modal.classList.remove(
-                    "active"
-                );
-
-            }
-        );
-}
-
-
-/* =========================================================
-   BOTÕES
-========================================================= */
-
-function iniciarBotoes() {
-
-    const tema =
-        document.getElementById(
-            "themeToggle"
-        );
-
-
-    if (tema) {
-
-        tema.addEventListener(
-            "click",
-            alternarTema
-        );
-
-    }
-
-
-    const limpar =
-        document.querySelector(
-            '[data-action="limpar-filtros"]'
-        );
-
-
-    if (limpar) {
-
-        limpar.addEventListener(
-            "click",
-            limparFiltros
-        );
-
-    }
-
-
-    const exportar =
-        document.getElementById(
-            "exportarResultados"
-        );
-
-
-    if (exportar) {
-
-        exportar.addEventListener(
-            "click",
-            () =>
-                exportarExcel(
-                    estado.dados,
-                    "SIGDH_resultados.xlsx"
-                )
-        );
-
-    }
-
-
-    const exportarFiltrado =
-        document.getElementById(
-            "exportarFiltrado"
-        );
-
-
-    if (exportarFiltrado) {
-
-        exportarFiltrado.addEventListener(
-            "click",
-            () =>
-                exportarExcel(
-                    estado.dadosFiltrados,
-                    "SIGDH_filtrado.xlsx"
-                )
-        );
-
-    }
-
-
-    const exportarCriticas =
-        document.getElementById(
-            "exportarCriticas"
-        );
-
-
-    if (exportarCriticas) {
-
-        exportarCriticas.addEventListener(
-            "click",
-            () => {
-
-                const dados =
-                    estado.dados.filter(
-                        item =>
-                            item.prioridade ===
-                            "ALTA"
-                    );
-
-
-                exportarExcel(
-                    dados,
-                    "SIGDH_criticas.xlsx"
-                );
-
-            }
-        );
-
-    }
-
-
-    const exportarBaixa =
-        document.getElementById(
-            "exportarBaixaConfianca"
-        );
-
-
-    if (exportarBaixa) {
-
-        exportarBaixa.addEventListener(
-            "click",
-            () => {
-
-                const dados =
-                    estado.dados.filter(
-                        item =>
-                            item.nivelConfianca ===
-                            "BAIXA"
-                    );
-
-
-                exportarExcel(
-                    dados,
-                    "SIGDH_baixa_confianca.xlsx"
-                );
-
-            }
-        );
-
-    }
-
-
-    const limparHistorico =
-        document.getElementById(
-            "limparHistorico"
-        );
-
-
-    if (limparHistorico) {
-
-        limparHistorico.addEventListener(
-            "click",
-            () => {
-
-                estado.historico = [];
-
-                localStorage.removeItem(
-                    "sigdH_historico"
-                );
-
-                renderizarHistorico();
-
-                mostrarToast(
-                    "Histórico apagado.",
-                    "success"
-                );
-
-            }
-        );
-
-    }
-
-
-    /* =====================================================
-       BOTÃO DE USUÁRIO
-    ===================================================== */
-
-    const perfil =
-        document.querySelector(
-            ".profile"
-        );
-
-
-    if (perfil) {
-
-        perfil.style.cursor =
-            "pointer";
-
-
-        perfil.addEventListener(
-            "click",
-            trocarUsuario
-        );
-
-    }
-
-
-    const usuarioMini =
-        document.querySelector(
-            ".user-mini"
-        );
-
-
-    if (usuarioMini) {
-
-        usuarioMini.style.cursor =
-            "pointer";
-
-
-        usuarioMini.addEventListener(
-            "click",
-            trocarUsuario
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   TROCA DE USUÁRIO
-========================================================= */
-
-function trocarUsuario() {
-
-    const usuarios = [
-
-        {
-            nome: "Jamily Dias",
-            perfil: "Administradora",
-            iniciais: "JD"
-        },
-
-        {
-            nome: "Bruna Dias",
-            perfil: "Analista",
-            iniciais: "BD"
-        },
-
-        {
-            nome: "Gestor SIGDH",
-            perfil: "Gestor",
-            iniciais: "GS"
-        },
-
-        {
-            nome: "Operador SAC",
-            perfil: "Operador",
-            iniciais: "OS"
-        }
-
-    ];
-
-
-    const atual =
-        estado.usuario.nome;
-
-
-    const lista =
-        usuarios
-        .filter(
-            usuario =>
-                usuario.nome !==
-                atual
-        );
-
-
-    const escolha =
-        prompt(
-            "Trocar usuário:\n\n" +
-            lista
-            .map(
-                (
-                    usuario,
-                    index
-                ) =>
-                    `${index + 1}. ${usuario.nome} — ${usuario.perfil}`
-            )
-            .join("\n") +
-            "\n\nDigite o número:"
-        );
-
-
-    if (!escolha) return;
-
-
-    const indice =
-        Number(escolha) - 1;
-
-
-    if (
-        indice < 0 ||
-        indice >= lista.length
-    ) {
-
-        mostrarToast(
-            "Usuário inválido.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    estado.usuario =
-        lista[indice];
-
-
-    localStorage.setItem(
-        "sigdH_usuario",
-        JSON.stringify(
-            estado.usuario
-        )
-    );
-
-
-    atualizarUsuarioNaTela();
-
-
-    mostrarToast(
-        `Usuário alterado para ${estado.usuario.nome}.`,
-        "success"
-    );
-
-}
-
-
-/* =========================================================
-   ATUALIZAR USUÁRIO
-========================================================= */
-
-function atualizarUsuarioNaTela() {
-
-    const usuario =
-        estado.usuario;
-
-
-    document
-        .querySelectorAll(
-            ".profile-info strong"
-        )
-        .forEach(
-            elemento => {
-
-                elemento.textContent =
-                    usuario.nome;
-
-            }
-        );
-
-
-    document
-        .querySelectorAll(
-            ".profile-info span"
-        )
-        .forEach(
-            elemento => {
-
-                elemento.textContent =
-                    usuario.perfil;
-
-            }
-        );
-
-
-    document
-        .querySelectorAll(
-            ".profile .avatar"
-        )
-        .forEach(
-            elemento => {
-
-                elemento.textContent =
-                    usuario.iniciais;
-
-            }
-        );
-
-
-    document
-        .querySelectorAll(
-            ".user-mini-info strong"
-        )
-        .forEach(
-            elemento => {
-
-                elemento.textContent =
-                    usuario.nome;
-
-            }
-        );
-
-
-    document
-        .querySelectorAll(
-            ".user-mini-info span"
-        )
-        .forEach(
-            elemento => {
-
-                elemento.textContent =
-                    usuario.perfil;
-
-            }
-        );
-
-
-    document
-        .querySelectorAll(
-            ".user-mini .avatar"
-        )
-        .forEach(
-            elemento => {
-
-                elemento.textContent =
-                    usuario.iniciais;
-
-            }
-        );
-}
-
-
-/* =========================================================
-   LIMPAR FILTROS
-========================================================= */
-
-function limparFiltros() {
-
-    [
-        "searchDemandas",
-        "filtroClassificacao",
-        "filtroOfensor",
-        "filtroPrioridade",
-        "filtroConfianca"
-    ]
-    .forEach(
-        id => {
-
-            const elemento =
-                document.getElementById(
-                    id
-                );
-
-
-            if (!elemento) return;
-
-
-            elemento.value =
-                "";
-
-        }
-    );
-
-
-    aplicarFiltros();
-
-
-    mostrarToast(
-        "Filtros limpos.",
-        "success"
-    );
 }
 
 
 /* =========================================================
    EXPORTAÇÃO
-========================================================= */
+   ========================================================= */
 
-function exportarExcel(
-    dados,
-    nomeArquivo
-) {
+function configurarExportacao() {
 
-    if (!window.XLSX) {
+    const excel =
+        $("exportarExcel");
 
-        mostrarToast(
-            "Biblioteca XLSX não carregada.",
-            "error"
+    const csv =
+        $("exportarCSV");
+
+    const relatorio =
+        $("exportarRelatorio");
+
+
+    if (excel) {
+
+        excel.addEventListener(
+            "click",
+            exportarExcel
         );
-
-        return;
 
     }
 
 
-    if (!dados.length) {
+    if (csv) {
+
+        csv.addEventListener(
+            "click",
+            exportarCSV
+        );
+
+    }
+
+
+    if (relatorio) {
+
+        relatorio.addEventListener(
+            "click",
+            exportarRelatorio
+        );
+
+    }
+
+}
+
+
+function exportarExcel() {
+
+    if (estado.dados.length === 0) {
 
         mostrarToast(
             "Não existem dados para exportar.",
@@ -3974,48 +3152,50 @@ function exportarExcel(
     }
 
 
-    const linhas =
-        dados.map(
-            item => ({
+    const dados =
+        estado.dados.map(d => ({
 
-                "Nº":
-                    item.numero,
+            "Nº REGISTRO":
+                d.registro,
 
-                "PROTOCOLO":
-                    item.protocolo,
+            "PROTOCOLO":
+                d.protocolo,
 
-                "BENEFICIÁRIO":
-                    item.beneficiario,
+            "BENEFICIÁRIO":
+                d.beneficiario,
 
-                "DATA":
-                    item.data,
+            "DATA":
+                d.data,
 
-                "RECLAMAÇÃO":
-                    item.reclamacao,
+            "RECLAMAÇÃO":
+                d.reclamacao,
 
-                "CLASSIFICAÇÃO":
-                    item.classificacao,
+            "PRESTADOR":
+                d.prestador,
 
-                "OFENSOR":
-                    item.ofensor,
+            "OPERADORA":
+                d.operadora,
 
-                "PRIORIDADE":
-                    item.prioridade,
+            "CLASSIFICAÇÃO":
+                d.classificacao,
 
-                "CONFIANÇA":
-                    `${item.confianca}%`,
+            "OFENSOR":
+                d.ofensor,
 
-                "NÍVEL CONFIANÇA":
-                    item.nivelConfianca
+            "PRIORIDADE":
+                d.prioridade,
 
-            })
-        );
+            "CONFIANÇA":
+                `${d.confianca}%`,
+
+            "STATUS":
+                d.status
+
+        }));
 
 
     const worksheet =
-        XLSX.utils.json_to_sheet(
-            linhas
-        );
+        XLSX.utils.json_to_sheet(dados);
 
 
     const workbook =
@@ -4025,161 +3205,303 @@ function exportarExcel(
     XLSX.utils.book_append_sheet(
         workbook,
         worksheet,
-        "Resultados"
+        "Resultado"
     );
 
 
     XLSX.writeFile(
         workbook,
-        nomeArquivo
+        "resultado_SIGDH_5.0.xlsx"
     );
 
 
     mostrarToast(
-        "Arquivo exportado com sucesso.",
+        "Excel exportado com sucesso.",
         "success"
     );
+
+}
+
+
+function exportarCSV() {
+
+    if (estado.dados.length === 0) {
+
+        mostrarToast(
+            "Não existem dados para exportar.",
+            "warning"
+        );
+
+        return;
+
+    }
+
+
+    const dados =
+        estado.dados.map(d => ({
+
+            REGISTRO: d.registro,
+            PROTOCOLO: d.protocolo,
+            BENEFICIARIO: d.beneficiario,
+            DATA: d.data,
+            RECLAMACAO: d.reclamacao,
+            PRESTADOR: d.prestador,
+            OPERADORA: d.operadora,
+            CLASSIFICACAO: d.classificacao,
+            OFENSOR: d.ofensor,
+            PRIORIDADE: d.prioridade,
+            CONFIANCA: `${d.confianca}%`,
+            STATUS: d.status
+
+        }));
+
+
+    const worksheet =
+        XLSX.utils.json_to_sheet(dados);
+
+
+    const csv =
+        XLSX.utils.sheet_to_csv(
+            worksheet,
+            {
+                FS: ";"
+            }
+        );
+
+
+    const blob =
+        new Blob(
+            ["\ufeff" + csv],
+            {
+                type: "text/csv;charset=utf-8;"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(blob);
+
+
+    const link =
+        document.createElement("a");
+
+
+    link.href = url;
+
+    link.download =
+        "resultado_SIGDH_5.0.csv";
+
+
+    link.click();
+
+    URL.revokeObjectURL(url);
+
+
+    mostrarToast(
+        "CSV exportado com sucesso.",
+        "success"
+    );
+
+}
+
+
+function exportarRelatorio() {
+
+    if (estado.dados.length === 0) {
+
+        mostrarToast(
+            "Não existem dados para gerar o relatório.",
+            "warning"
+        );
+
+        return;
+
+    }
+
+
+    const total =
+        estado.dados.length;
+
+
+    const criticas =
+        estado.dados.filter(
+            d => d.prioridade === "CRITICA"
+        ).length;
+
+
+    const classificacoes = {};
+
+    estado.dados.forEach(d => {
+
+        classificacoes[d.classificacao] =
+            (classificacoes[d.classificacao] || 0) + 1;
+
+    });
+
+
+    const dominante =
+        Object.entries(classificacoes)
+            .sort((a,b) => b[1] - a[1])[0];
+
+
+    const confianca =
+        Math.round(
+            estado.dados.reduce(
+                (sum,d) =>
+                    sum + d.confianca,
+                0
+            ) / total
+        );
+
+
+    const texto = `
+
+SIGDH 5.0
+RELATÓRIO EXECUTIVO
+
+Data: ${formatarDataHora(new Date())}
+
+========================================
+
+RESUMO
+
+Total de demandas: ${total}
+
+Demandas críticas: ${criticas}
+
+Classificação predominante:
+${formatarTexto(dominante?.[0] || "-")}
+
+Confiança média:
+${confianca}%
+
+========================================
+
+OFENSORES
+
+${CONFIG.ofensores.map(ofensor => {
+
+    const quantidade =
+        estado.dados.filter(
+            d => d.ofensor === ofensor
+        ).length;
+
+    return `${formatarTexto(ofensor)}: ${quantidade}`;
+
+}).join("\n")}
+
+========================================
+
+Gerado pelo SIGDH 5.0
+
+`;
+
+
+    const blob =
+        new Blob(
+            [texto],
+            {
+                type: "text/plain;charset=utf-8"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(blob);
+
+
+    const link =
+        document.createElement("a");
+
+
+    link.href = url;
+
+    link.download =
+        "relatorio_executivo_SIGDH_5.0.txt";
+
+
+    link.click();
+
+    URL.revokeObjectURL(url);
+
+
+    mostrarToast(
+        "Relatório gerado com sucesso.",
+        "success"
+    );
+
 }
 
 
 /* =========================================================
    HISTÓRICO
-========================================================= */
+   ========================================================= */
 
-function registrarHistorico(
-    arquivo,
+function salvarHistoricoImportacao(
+    nome,
     quantidade
 ) {
 
-    const registro = {
+    const historico =
+        JSON.parse(
+            localStorage.getItem(
+                "sigdH_historico"
+            ) || "[]"
+        );
 
-        id:
-            Date.now(),
 
-        nome:
-            arquivo.name,
+    historico.unshift({
 
-        tamanho:
-            arquivo.size,
+        nome,
 
         quantidade,
 
         data:
-            new Date().toLocaleString(
-                "pt-BR"
-            )
+            new Date().toISOString()
 
-    };
-
-
-    estado.historico.unshift(
-        registro
-    );
-
-
-    estado.historico =
-        estado.historico.slice(
-            0,
-            20
-        );
+    });
 
 
     localStorage.setItem(
         "sigdH_historico",
         JSON.stringify(
-            estado.historico
+            historico.slice(0, 20)
         )
     );
-}
 
 
-function carregarHistorico() {
-
-    const salvo =
-        localStorage.getItem(
-            "sigdH_historico"
-        );
-
-
-    if (!salvo) return;
-
-
-    try {
-
-        estado.historico =
-            JSON.parse(
-                salvo
-            );
-
-    } catch {
-
-        estado.historico = [];
-
-    }
-
-
-    const usuarioSalvo =
-        localStorage.getItem(
-            "sigdH_usuario"
-        );
-
-
-    if (usuarioSalvo) {
-
-        try {
-
-            estado.usuario =
-                JSON.parse(
-                    usuarioSalvo
-                );
-
-            atualizarUsuarioNaTela();
-
-        } catch {
-
-            console.warn(
-                "Usuário salvo inválido."
-            );
-
-        }
-
-    }
+    renderizarHistorico();
 
 }
 
-
-/* =========================================================
-   RENDERIZAR HISTÓRICO
-========================================================= */
 
 function renderizarHistorico() {
 
-    const elemento =
-        document.getElementById(
-            "historicoLista"
+    const container =
+        $("historicoImportacoes");
+
+    if (!container) return;
+
+
+    const historico =
+        JSON.parse(
+            localStorage.getItem(
+                "sigdH_historico"
+            ) || "[]"
         );
 
 
-    if (!elemento) return;
+    if (historico.length === 0) {
 
-
-    if (
-        !estado.historico.length
-    ) {
-
-        elemento.innerHTML = `
+        container.innerHTML = `
 
             <div class="empty-state">
 
-                <i class="fa-solid fa-clock-rotate-left"></i>
+                <i class="fas fa-clock-rotate-left"></i>
 
-                <strong>
-                    Nenhuma importação registrada
-                </strong>
-
-                <span>
-                    O histórico será criado após uma importação.
-                </span>
+                <p>
+                    Nenhuma importação realizada.
+                </p>
 
             </div>
 
@@ -4190,192 +3512,171 @@ function renderizarHistorico() {
     }
 
 
-    elemento.innerHTML =
-        estado.historico
-        .map(
-            item => `
+    container.innerHTML = "";
 
-                <div class="history-item">
 
-                    <div class="history-icon">
+    historico.forEach(item => {
 
-                        <i class="fa-solid fa-file-excel"></i>
+        container.innerHTML += `
 
-                    </div>
+            <div class="history-item">
 
-                    <div class="history-info">
+                <div class="history-icon">
 
-                        <strong>
-                            ${escaparHTML(
-                                item.nome
-                            )}
-                        </strong>
-
-                        <span>
-                            ${item.data}
-                        </span>
-
-                    </div>
-
-                    <div class="history-count">
-
-                        <strong>
-                            ${item.quantidade}
-                        </strong>
-
-                        <span>
-                            registros
-                        </span>
-
-                    </div>
+                    <i class="fas fa-file-excel"></i>
 
                 </div>
 
-            `
-        )
-        .join("");
+                <div class="history-info">
+
+                    <strong>
+                        ${escaparHTML(item.nome)}
+                    </strong>
+
+                    <span>
+                        ${item.quantidade} registro(s)
+                        ·
+                        ${formatarDataHora(
+                            new Date(item.data)
+                        )}
+                    </span>
+
+                </div>
+
+            </div>
+
+        `;
+
+    });
+
 }
 
 
 /* =========================================================
    PROGRESSO
-========================================================= */
+   ========================================================= */
 
 function mostrarProgresso(
-    percentual,
-    texto
+    porcentagem,
+    nome
 ) {
 
-    const area =
-        document.getElementById(
-            "importProgress"
-        );
+    const progress =
+        $("importProgress");
+
+    const bar =
+        $("progressBar");
+
+    const percent =
+        $("progressPercent");
+
+    const arquivo =
+        $("arquivoNome");
 
 
-    const barra =
-        document.getElementById(
-            "progressBar"
-        );
+    if (progress) {
 
-
-    const porcentagem =
-        document.getElementById(
-            "progressPercent"
-        );
-
-
-    const textoElemento =
-        document.querySelector(
-            "[data-progress-text]"
-        );
-
-
-    if (area) {
-
-        area.classList.remove(
+        progress.classList.remove(
             "hidden"
         );
 
     }
 
+    if (bar) {
 
-    if (barra) {
-
-        barra.style.width =
-            `${percentual}%`;
-
-    }
-
-
-    if (porcentagem) {
-
-        porcentagem.textContent =
-            `${percentual}%`;
+        bar.style.width =
+            `${porcentagem}%`;
 
     }
 
+    if (percent) {
 
-    if (textoElemento) {
+        percent.textContent =
+            `${porcentagem}%`;
 
-        textoElemento.textContent =
-            texto;
+    }
+
+    if (arquivo) {
+
+        arquivo.textContent =
+            nome;
 
     }
 
 }
 
 
-function esconderProgresso() {
+function ocultarProgresso() {
 
-    const area =
-        document.getElementById(
-            "importProgress"
-        );
+    const progress =
+        $("importProgress");
 
+    if (progress) {
 
-    if (area) {
-
-        area.classList.add(
+        progress.classList.add(
             "hidden"
         );
 
     }
+
+}
+
+
+function mostrarResultadoImportacao(
+    nome,
+    quantidade
+) {
+
+    const result =
+        $("importResult");
+
+    if (!result) return;
+
+
+    result.classList.remove(
+        "hidden"
+    );
+
+
+    result.innerHTML = `
+
+        <strong>
+            <i class="fas fa-circle-check"></i>
+            Importação concluída
+        </strong>
+
+        <p style="margin-top:6px;">
+            Arquivo:
+            <strong>
+                ${escaparHTML(nome)}
+            </strong>
+            ·
+            ${quantidade} registro(s)
+            processado(s).
+        </p>
+
+    `;
+
 }
 
 
 /* =========================================================
    TOAST
-========================================================= */
+   ========================================================= */
 
 function mostrarToast(
     mensagem,
     tipo = "info"
 ) {
 
-    let container =
-        document.getElementById(
-            "toastContainer"
-        );
+    const container =
+        $("toastContainer");
 
-
-    if (!container) {
-
-        container =
-            document.querySelector(
-                ".toast-container"
-            );
-
-    }
-
-
-    if (!container) {
-
-        container =
-            document.createElement(
-                "div"
-            );
-
-        container.id =
-            "toastContainer";
-
-        container.className =
-            "toast-container";
-
-        document.body.appendChild(
-            container
-        );
-
-    }
+    if (!container) return;
 
 
     const toast =
-        document.createElement(
-            "div"
-        );
-
-
-    toast.className =
-        `toast toast-${tipo}`;
+        document.createElement("div");
 
 
     const icones = {
@@ -4395,275 +3696,206 @@ function mostrarToast(
     };
 
 
+    toast.className =
+        `toast ${tipo}`;
+
+
     toast.innerHTML = `
 
-        <i class="fa-solid ${
-            icones[tipo] ||
-            icones.info
-        }"></i>
+        <i class="fas ${icones[tipo] || icones.info}"></i>
 
         <span>
-            ${escaparHTML(
-                mensagem
-            )}
+            ${escaparHTML(mensagem)}
         </span>
 
     `;
 
 
-    container.appendChild(
-        toast
-    );
+    container.appendChild(toast);
 
 
-    setTimeout(
-        () => {
+    setTimeout(() => {
 
-            toast.classList.add(
-                "removing"
-            );
+        toast.style.opacity = "0";
 
-            setTimeout(
-                () => {
+        toast.style.transform =
+            "translateX(20px)";
 
-                    toast.remove();
 
-                },
-                300
-            );
+        setTimeout(() => {
 
-        },
-        3500
-    );
+            toast.remove();
+
+        }, 250);
+
+    }, 3500);
+
 }
 
 
 /* =========================================================
-   UTILITÁRIOS
-========================================================= */
+   FUNÇÕES AUXILIARES
+   ========================================================= */
 
-function definirTexto(
-    id,
-    valor
-) {
+function normalizarTexto(valor) {
 
-    const elemento =
-        document.getElementById(
-            id
+    return String(valor ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .trim();
+
+}
+
+
+function contemAlgum(texto, lista) {
+
+    return lista.some(
+        termo =>
+            texto.includes(
+                normalizarTexto(termo)
+            )
+    );
+
+}
+
+
+function formatarTexto(valor) {
+
+    return String(valor || "")
+        .toLowerCase()
+        .replace(/_/g, " ")
+        .replace(
+            /\b\w/g,
+            letra => letra.toUpperCase()
         );
 
+}
+
+
+function limitarTexto(texto, limite) {
+
+    const valor =
+        String(texto || "");
+
+    if (valor.length <= limite) {
+        return valor;
+    }
+
+    return valor.substring(
+        0,
+        limite
+    ) + "...";
+
+}
+
+
+function escaparHTML(valor) {
+
+    return String(valor ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+}
+
+
+function definirTexto(id, valor) {
+
+    const elemento = $(id);
 
     if (elemento) {
 
-        elemento.textContent =
-            valor;
+        elemento.textContent = valor;
 
     }
 
 }
 
 
-function obterValor(id) {
+function aguardar(ms) {
 
-    const elemento =
-        document.getElementById(
-            id
-        );
+    return new Promise(resolve =>
+        setTimeout(resolve, ms)
+    );
 
-
-    return elemento
-        ? elemento.value
-        : "";
 }
 
 
-function obterDominante(
-    dados,
-    propriedade
-) {
+function formatarDataHora(data) {
 
-    if (!dados.length) {
+    if (!(data instanceof Date)) {
+
+        data = new Date(data);
+
+    }
+
+
+    if (isNaN(data.getTime())) {
+
+        return "-";
+
+    }
+
+
+    return data.toLocaleString(
+        "pt-BR",
+        {
+            dateStyle: "short",
+            timeStyle: "short"
+        }
+    );
+
+}
+
+
+function normalizarData(valor) {
+
+    if (!valor) return "";
+
+    const texto =
+        String(valor).trim();
+
+
+    let data;
+
+
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(texto)) {
+
+        const partes =
+            texto.split("/");
+
+        data = new Date(
+            Number(partes[2]),
+            Number(partes[1]) - 1,
+            Number(partes[0])
+        );
+
+    } else {
+
+        data = new Date(texto);
+
+    }
+
+
+    if (isNaN(data.getTime())) {
 
         return "";
 
     }
 
 
-    const contagem = {};
-
-
-    dados.forEach(
-        item => {
-
-            const valor =
-                item[
-                    propriedade
-                ];
-
-
-            if (!valor) return;
-
-
-            contagem[valor] =
-                (
-                    contagem[valor] ||
-                    0
-                ) + 1;
-
-        }
-    );
-
-
-    const ranking =
-        Object.entries(
-            contagem
-        )
-        .sort(
-            (a, b) =>
-                b[1] - a[1]
-        );
-
-
-    return ranking.length
-        ? ranking[0][0]
-        : "";
-}
-
-
-function formatarCategoria(
-    valor
-) {
-
-    if (!valor) {
-
-        return "—";
-
-    }
-
-
-    const mapa = {
-
-        MATERIAL:
-            "Material",
-
-        MEDICAMENTO:
-            "Medicamento",
-
-        LOGISTICA:
-            "Logística",
-
-        COMPRA:
-            "Compra",
-
-        OPME:
-            "OPME",
-
-        FARMACIA:
-            "Farmácia",
-
-        ALTA:
-            "Alta",
-
-        MEDIA:
-            "Média",
-
-        BAIXA:
-            "Baixa"
-
-    };
-
-
-    return mapa[
-        String(valor).toUpperCase()
-    ] ||
-        valor;
-
-}
-
-
-function obterValorAlternativo(
-    linha,
-    indices
-) {
-
-    for (
-        const indice of indices
-    ) {
-
-        const valor =
-            normalizarTexto(
-                linha[indice]
-            );
-
-
-        if (valor) {
-
-            return valor;
-
-        }
-
-    }
-
-
-    return "";
-}
-
-
-/* =========================================================
-   SEGURANÇA HTML
-========================================================= */
-
-function escaparHTML(
-    valor
-) {
-
-    return String(
-        valor ?? ""
-    )
-    .replace(
-        /&/g,
-        "&amp;"
-    )
-    .replace(
-        /</g,
-        "&lt;"
-    )
-    .replace(
-        />/g,
-        "&gt;"
-    )
-    .replace(
-        /"/g,
-        "&quot;"
-    )
-    .replace(
-        /'/g,
-        "&#039;"
-    );
+    return data.toISOString()
+        .slice(0, 10);
 
 }
 
 
 /* =========================================================
-   FINALIZAÇÃO
-========================================================= */
+   FINAL
+   ========================================================= */
 
-window.SIGDH = {
-
-    estado,
-
-    importar:
-        processarArquivo,
-
-    exportar:
-        exportarExcel,
-
-    mudarSecao,
-
-    alternarTema,
-
-    trocarUsuario,
-
-    limparFiltros
-
-};
+renderizarHistorico();
+```
